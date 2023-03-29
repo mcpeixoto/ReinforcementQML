@@ -162,7 +162,7 @@ learning_rate = 0.1
 regularization_strength = 0#0.001
 
 # Initialize the circuit parameters randomly
-params = np.random.uniform(low=-np.pi / 2, high=np.pi / 2, size=(2, 6, 3))
+params = np.random.uniform(low=-np.pi, high=np.pi, size=(2, 6, 3))
 params = torch.Tensor(params)
 
 # Initialize the optimizer
