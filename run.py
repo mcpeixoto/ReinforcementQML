@@ -159,7 +159,7 @@ env = gym.make("Acrobot-v1", render_mode='human')
 num_episodes = 500
 gamma = 0.99
 learning_rate = 0.1
-regularization_strength = 0#0.001
+regularization_strength = 0.001
 
 # Initialize the circuit parameters randomly
 params = np.random.uniform(low=-np.pi, high=np.pi, size=(2, 6, 3))
