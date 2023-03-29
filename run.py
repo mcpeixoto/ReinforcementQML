@@ -3,6 +3,10 @@ import numpy as np
 import gym
 import torch
 
+# Fix the seed
+np.random.seed(42)
+torch.manual_seed(42)
+
 
 # Define the variational quantum circuit
 class Classifier:
@@ -57,8 +61,34 @@ def classifier(x, weights):
     answer = torch.tensor(answer)
     return answer
 
-# Define the loss function
-def loss(params, env, gamma, learning_rate, regularization_strength):
+
+def normalize_state(state):
+    """
+    Normalize the state to be between -pi and pi
+    
+    state table:
+    | state | Min | Max |
+    |-------------|-----|-----|
+    | Cosine of theta1 | -1 | 1 |
+    | Sine of theta1 | -1 | 1 |
+    | Cosine of theta2 | -1 | 1 |
+    | Sine of theta2 | -1 | 1 |
+    | Angular velocity of theta1 | -4*pi | 4*pi |
+    | Angular velocity of theta2 | -9*pi | 9*pi |
+    """
+
+    # Normalize the observation
+    state[0] = state[0] * np.pi
+    state[1] = state[1] * np.pi
+    state[2] = state[2] * np.pi
+    state[3] = state[3] * np.pi
+    state[4] = state[4] / 4
+    state[5] = state[5] / 9
+
+    return state
+
+# Define the train loop
+def train(params, env, gamma, learning_rate, regularization_strength):
     # Initialize the total reward and reset the environment
     total_reward = 0
     state = env.reset()
@@ -79,6 +109,10 @@ def loss(params, env, gamma, learning_rate, regularization_strength):
         #print("State:", state)
         if type(state) == tuple:
             state = state[0] # torch.tensor(state[0], dtype=torch.float32)
+
+        # Normalize the state
+        state = normalize_state(state)
+        # State 
         action = classifier(state, params)
         action = torch.argmax(action)
 
@@ -125,7 +159,7 @@ env = gym.make("Acrobot-v1", render_mode='human')
 num_episodes = 500
 gamma = 0.99
 learning_rate = 0.1
-regularization_strength = 0.001
+regularization_strength = 0#0.001
 
 # Initialize the circuit parameters randomly
 params = np.random.uniform(low=-np.pi / 2, high=np.pi / 2, size=(2, 6, 3))
@@ -137,7 +171,7 @@ opt = qml.AdamOptimizer(learning_rate)
 # Train the model
 for i in range(num_episodes):
     # Compute the loss and gradient for the current parameters
-    loss, grad = loss(params, env, gamma, learning_rate, regularization_strength)
+    loss, grad = train(params, env, gamma, learning_rate, regularization_strength)
 
     # Update the parameters using the optimizer
     params = opt.step(grad, params)
