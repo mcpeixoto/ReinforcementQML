@@ -1,211 +1,327 @@
-import pennylane as qml
+# General imports
 import numpy as np
-import gym
+import matplotlib.pyplot as plt
+
+# Qiskit Circuit imports
+from qiskit.circuit import QuantumCircuit, QuantumRegister, Parameter, ParameterVector, ParameterExpression
+from qiskit.circuit.library import TwoLocal
+
+# Qiskit imports
+import qiskit as qk
+from qiskit.utils import QuantumInstance
+
+# Qiskit Machine Learning imports
+import qiskit_machine_learning as qkml
+from qiskit_machine_learning.neural_networks import CircuitQNN
+from qiskit_machine_learning.connectors import TorchConnector
+
+# PyTorch imports
 import torch
+from torch import Tensor
+from torch.nn import MSELoss
+from torch.optim import LBFGS, SGD, Adam, RMSprop
 
-# Fix the seed
-np.random.seed(42)
-torch.manual_seed(42)
+# OpenAI Gym import
+import gym
 
+# Fix seed for reproducibility
+seed = 42
+np.random.seed(seed)
+torch.manual_seed(seed)
 
-# Define the variational quantum circuit
-class Classifier:
-    def __init__(self, n_wires, n_layers, n_features):
-        self.n_wires = n_wires
-        self.n_layers = n_layers
-        self.n_features = n_features
-
-    def __call__(self, x, weights):
-        # Embedding - Dense Angle Embedding
-        # Divide the input in 3 parts
-        assert self.n_features <= self.n_wires * 3, "Too many features"
-
-        #print(x.shape, x)
-
-        for i in range(self.n_features):
-            if i // 3 == 0:
-                qml.RX(x[i], wires=i % self.n_wires)
-            elif i // 3 == 1:
-                qml.RY(x[i], wires=i % self.n_wires)
-            else:
-                qml.RZ(x[i], wires=i % self.n_wires)
-
-        # For every layer
-        for layer in range(self.n_layers):
-            W = weights[layer]
-
-            # Define Rotations
-            for i in range(self.n_wires):
-                qml.Rot(W[i, 0], W[i, 1], W[i, 2], wires=i)
-
-            # Entanglement
-            if self.n_wires != 1:
-                if self.n_wires > 2:
-                    for i in range(self.n_wires):
-                        if i == self.n_wires - 1:
-                            qml.CNOT(wires=[i, 0])
-                        else:
-                            qml.CNOT(wires=[i, i + 1])
-                else:
-                    qml.CNOT(wires=[1, 0])
-
-        # Measurement 3 qubits
-        return qml.expval(qml.PauliZ(0)), qml.expval(qml.PauliZ(1)), qml.expval(qml.PauliZ(2))
+def encode_data(inputs, num_qubits = 4, *args):
     
-
-def classifier(x, weights):
-    dev = qml.device("default.qubit", wires=3)
-    model = qml.QNode(Classifier(3, 2, 6), dev)
-
-    answer = model(x, weights)
-    answer = torch.tensor(answer)
-    return answer
-
-
-def normalize_state(state):
-    """
-    Normalize the state to be between -pi and pi
+    qc = qk.QuantumCircuit(num_qubits)
     
-    state table:
-    | state | Min | Max |
-    |-------------|-----|-----|
-    | Cosine of theta1 | -1 | 1 |
-    | Sine of theta1 | -1 | 1 |
-    | Cosine of theta2 | -1 | 1 |
-    | Sine of theta2 | -1 | 1 |
-    | Angular velocity of theta1 | -4*pi | 4*pi |
-    | Angular velocity of theta2 | -9*pi | 9*pi |
-    """
+    # Encode data with a RX rotation
+    for i in range(len(inputs)): 
+        qc.rx(inputs[i], i)
+        
+    return qc
 
-    # Normalize the observation
-    state[0] = state[0] * np.pi
-    state[1] = state[1] * np.pi
-    state[2] = state[2] * np.pi
-    state[3] = state[3] * np.pi
-    state[4] = state[4] / 4
-    state[5] = state[5] / 9
+def VQC(num_qubits = 4, reuploading = False, reps = 2, insert_barriers = True, meas = False):
+    
+    qr = qk.QuantumRegister(num_qubits, 'qr')
+    qc = qk.QuantumCircuit(qr)
+    
+    if meas:
+        qr = qk.QuantumRegister(num_qubits, 'qr')
+        cr = qk.ClassicalRegister(num_qubits, 'cr')
+        qc = qk.QuantumCircuit(qr,cr)
+    
+    
+    if not reuploading:
+        
+        # Define a vector containg Inputs as parameters (*not* to be optimized)
+        inputs = qk.circuit.ParameterVector('x', num_qubits)
+                
+        # Encode classical input data
+        qc.compose(encode_data(inputs, num_qubits = num_qubits), inplace = True)
+        if insert_barriers: qc.barrier()
+        
+        # Variational circuit
+        qc.compose(TwoLocal(num_qubits, ['ry', 'rz'], 'cz', 'circular', 
+               reps=reps, insert_barriers= insert_barriers, 
+               skip_final_rotation_layer = True), inplace = True)
+        if insert_barriers: qc.barrier()
+        
+        # Add final measurements
+        if meas: qc.measure(qr,cr)
+        
+    elif reuploading:
+        
+        # Define a vector containg Inputs as parameters (*not* to be optimized)
+        inputs = qk.circuit.ParameterVector('x', num_qubits)
+                
+        # Define a vector containng variational parameters
+        θ = qk.circuit.ParameterVector('θ', 2 * num_qubits * reps)
+        
+        # Iterate for a number of repetitions
+        for rep in range(reps):
 
-    return state
-
-# Define the train loop
-def train(params, env, gamma, learning_rate, regularization_strength):
-    # Initialize the total reward and reset the environment
-    total_reward = 0
-    state = env.reset()
-
-    # Initialize the previous state and action for the eligibility trace
-    prev_state = None
-    prev_action = None
-    eligibility_trace = 0
-
-    # Initialize the regularization term and the number of timesteps
-    regularization_term = 0
-    timestep = 0
-
-    # Run the episode until completion
-    done = False
-    while not done:
-        # Choose the action using the variational quantum circuit
-        #print("State:", state)
-        if type(state) == tuple:
-            state = state[0] # torch.tensor(state[0], dtype=torch.float32)
-
-        # Normalize the state
-        state = normalize_state(state)
-        # State 
-        action = classifier(state, params)
-        action = torch.argmax(action)
+            # Encode classical input data
+            qc.compose(encode_data(inputs, num_qubits = num_qubits), inplace = True)
+            if insert_barriers: qc.barrier()
+                
+            # Variational circuit (does the same as TwoLocal from Qiskit)
+            for qubit in range(num_qubits):
+                qc.ry(θ[qubit + 2*num_qubits*(rep)], qubit)
+                qc.rz(θ[qubit + 2*num_qubits*(rep) + num_qubits], qubit)
+            if insert_barriers: qc.barrier()
+                
+            # Add entanglers (this code is for a circular entangler)
+            qc.cz(qr[-1], qr[0])
+            for qubit in range(num_qubits-1):
+                qc.cz(qr[qubit], qr[qubit+1])
+            if insert_barriers: qc.barrier()
+                        
+        # Add final measurements
+        if meas: qc.measure(qr,cr)
+        
+    return qc
 
 
-        # Take the chosen action and observe the new state and reward
-        new_state, reward, done, _, _ = env.step(action)
+######################
+# CREATE PQC
+######################
 
-        # Compute the reward signal
-        reward = 1 - (abs(new_state[0]) + abs(new_state[1])) / 4
+# Select the number of qubits
+num_qubits = 4
 
-        # Compute the TD error and the eligibility trace
-        if prev_state is not None and prev_action is not None:
-            td_error = reward + gamma * classifier(new_state, params) - classifier(prev_state, params)[prev_action]
-            eligibility_trace = gamma * eligibility_trace + classifier(prev_state, params)[prev_action] * (1 - gamma) * prev_action
+# Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
+qc = VQC(num_qubits = num_qubits, 
+                          reuploading = True, 
+                          reps = 6)
+
+# Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
+# The first four parameters are for the inputs 
+X = list(qc.parameters)[: num_qubits]
+
+# The remaining ones are the trainable weights of the quantum neural network
+params = list(qc.parameters)[num_qubits:]
+
+
+
+######################
+# PyTorch Layer
+######################
+
+# Select a quantum backend to run the simulation of the quantum circuit
+qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'))
+
+# Create a Quantum Neural Network object starting from the quantum circuit defined above
+qnn = CircuitQNN(qc, input_params=X, weight_params=params, 
+                 quantum_instance = qi)
+
+# Connect to PyTorch
+initial_weights = (2*np.random.rand(qnn.num_weights) - 1)
+quantum_nn = TorchConnector(qnn, initial_weights)
+
+######################
+# Pre & Post processing
+######################
+
+class encoding_layer(torch.nn.Module):
+    def __init__(self, num_qubits = 4):
+        super().__init__()
+        
+        # Define weights for the layer
+        weights = torch.Tensor(num_qubits)
+        self.weights = torch.nn.Parameter(weights)
+        torch.nn.init.uniform_(self.weights, -1, 1) # <--  Initialization strategy
+    
+        
+    def forward(self, x):
+        
+        
+        if not isinstance(x, Tensor):
+            x = Tensor(x)
+        
+        x = self.weights * x
+        x = torch.atan(x)
+                
+        return x
+    
+class exp_val_layer(torch.nn.Module):
+    def __init__(self, action_space = 2):
+        super().__init__()
+        
+        # Define the weights for the layer
+        weights = torch.Tensor(action_space)
+        self.weights = torch.nn.Parameter(weights)
+        torch.nn.init.uniform_(self.weights, 35, 40) # <-- Initialization strategy (heuristic choice)
+        
+        # Masks that map the vector of probabilities to <Z_0*Z_1> and <Z_2*Z_3>
+        self.mask_ZZ_12 = torch.tensor([1.,-1.,-1.,1.,1.,-1.,-1.,1.,1.,-1.,-1.,1.,1.,-1.,-1.,1.], requires_grad = False)
+        self.mask_ZZ_34 = torch.tensor([-1.,-1.,-1.,-1.,1.,1.,1.,1.,-1.,-1.,-1.,-1.,1.,1.,1.,1.], requires_grad = False)
+        
+    def forward(self, x):
+        
+        
+        expval_ZZ_12 = self.mask_ZZ_12 * x
+        expval_ZZ_34 = self.mask_ZZ_34 * x
+        
+        # Single sample
+        if len(x.shape) == 1:
+            expval_ZZ_12 = torch.sum(expval_ZZ_12)
+            expval_ZZ_34 = torch.sum(expval_ZZ_34)
+            out = torch.cat((expval_ZZ_12.unsqueeze(0), expval_ZZ_34.unsqueeze(0)))
+        
+        # Batch of samples
         else:
-            td_error = 0
+            expval_ZZ_12 = torch.sum(expval_ZZ_12, dim = 1, keepdim = True)
+            expval_ZZ_34 = torch.sum(expval_ZZ_34, dim = 1, keepdim = True)
+            out = torch.cat((expval_ZZ_12, expval_ZZ_34), 1)
+                
+        return self.weights * ((out + 1.) / 2.)
+    
 
-        # Update the total reward and the state for the next iteration
-        total_reward += reward
-        prev_state = state
-        prev_action = action
-        state = new_state
-        timestep += 1
+######################
+# Define the model
+######################
 
-        # Compute the regularization term
-        regularization_term += torch.sum(torch.square(params))
+# Classical trainable preprocessing
+encoding = encoding_layer()
 
-        # Update the parameters using the eligibility trace and optimizer
-        params -= learning_rate * td_error * eligibility_trace + regularization_strength * params
+# Classical trainable postprocessing
+exp_val = exp_val_layer()
 
-    # Compute the loss as the negative of the total reward plus the regularization term
-    # (since we want to maximize the reward)
-    loss = -total_reward + regularization_strength * regularization_term / timestep
+# Stack the classical and quantum layers together 
+model = torch.nn.Sequential(encoding, 
+                            quantum_nn, 
+                            exp_val)
 
-    # Compute the gradient of the loss with respect to the circuit parameters
-    gradient = qml.grad(loss, argnum=0)
+model.state_dict()
 
-    return loss, gradient(params)
+######################
+# CardPool
+######################
 
-# Initialize the environment
-env = gym.make("Acrobot-v1", render_mode='human')
+env = gym.make("CartPole-v1",  render_mode='human')
+input_shape = [4] # == env.observation_space.shape
+n_outputs = 2 # == env.action_space.n
 
-# Set the hyperparameters
-num_episodes = 500
-gamma = 0.99
-learning_rate = 0.1
-regularization_strength = 0.001
+######################
+# Training
+######################
 
-# Initialize the circuit parameters randomly
-params = np.random.uniform(low=-np.pi, high=np.pi, size=(2, 6, 3))
-params = torch.Tensor(params)
+from collections import deque
 
-# Initialize the optimizer
-opt = qml.AdamOptimizer(learning_rate)
+replay_memory = deque(maxlen=2000)
 
-# Train the model
-for i in range(num_episodes):
-    # Compute the loss and gradient for the current parameters
-    loss, grad = train(params, env, gamma, learning_rate, regularization_strength)
 
-    # Update the parameters using the optimizer
-    params = opt.step(grad, params)
+def sample_experiences(batch_size):
+    
+    indices = np.random.randint(len(replay_memory), size=batch_size)
+    batch = [replay_memory[index] for index in indices]
+    states, actions, rewards, next_states, dones = [
+        np.array([experience[field_index] for experience in batch])
+        for field_index in range(5)]
+    return states, actions, rewards, next_states, dones
 
-    # Print the episode number and total reward
-    if (i + 1) % 10 == 0:
-        total_reward = 0
-        for j in range(10):
-            state = env.reset()
-            # Show environment
-            env.render()
-            done = False
-            while not done:
-                action = classifier(state, params)
-                state, reward, done, _ = env.step(action)
-                total_reward += reward
-                env.render()
-                print("Reward:", reward)
-        print(f"Episode {i + 1}: Total reward = {total_reward / 10:.2f}")
+def play_one_step(env, state, epsilon):
+    
+    # Epislon-greedy policy
+    if np.random.rand() < epsilon:
+        action = np.random.randint(n_outputs)
+    else:
+        with torch.no_grad():
+            Q_values = model(Tensor(state)).numpy()
+        action = np.argmax(Q_values[0])
 
-    # Close the environment
-    env.close()
+    next_state, reward, done, info, _ = env.step(action)
+    replay_memory.append((state, action, reward, next_state, done))
+    return next_state, reward, done, info
 
-"""
+def training_step(a):
+    # Sample past experiences
+    experiences = sample_experiences(batch_size)
+    states, actions, rewards, next_states, dones = experiences
+    
+    # Evaluate Target Q-values
+    with torch.no_grad():
+        next_Q_values = model(Tensor(next_states)).numpy()
+    max_next_Q_values = np.max(next_Q_values, axis=1)
+    target_Q_values = (rewards + (1 - dones) * discount_rate * max_next_Q_values)
+    target_Q_values = target_Q_values.reshape(-1, 1)
+    mask = torch.nn.functional.one_hot(Tensor(actions).long(), n_outputs)
+    
+    # Evaluate the loss
+    all_Q_values = model(Tensor(states))
+    Q_values = torch.sum(all_Q_values * mask, dim=1, keepdims=True)
+    loss = torch.mean((Q_values - Tensor(target_Q_values))**2)
+    
+    # Evaluate the gradients and update the parameters 
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
-In this code, we first initialize the OpenAI Gym environment for the Acrobot game. Then, we set the hyperparameters, 
-including the number of episodes, the discount factor gamma, the learning rate for the optimizer, and the regularization strength. 
-We also randomly initialize the circuit parameters and create an Adam optimizer.
 
-The main training loop runs for the specified number of episodes. In each episode, we use the `loss` function to compute the loss and 
-gradient for the current circuit parameters and then update the parameters using the optimizer. Every 10 episodes, we print the episode 
-number and the average total reward over 10 evaluation episodes.
 
-Finally, we close the environment. Note that training a reinforcement learning algorithm with a quantum circuit can be computationally expensive, 
-so this code may take some time to run.
+batch_size = 16
+discount_rate = 0.99
+optimizer = Adam(model.parameters(), lr=1e-2)
 
-"""
+
+rewards = [] 
+best_score = 0
+
+# We let the agent train for 2000 episodes
+for episode in range(1000):
+    
+    # Run enviroment simulation
+    obs, _ = env.reset()  
+
+    # 200 is the target score for considering the environment solved
+    for step in range(200):
+        
+        # Manages the transition from exploration to exploitation
+        epsilon = max(1 - episode / 1500, 0.01)
+        obs, reward, done, info = play_one_step(env, obs, epsilon)
+        if done:
+            break
+    rewards.append(step)
+    
+    # Saving best agent
+    if step >= best_score:
+        # torch.save(model.state_dict(), './new_model_best_weights.pth') # Save best weights
+        best_score = step
+        
+    print("\rEpisode: {}, Steps : {}, eps: {:.3f}".format(episode, step + 1, epsilon), end="")
+    
+    # Start training only after some exploration experiences  
+    if episode > 20:
+        training_step(batch_size)
+
+
+
+
+
+model.state_dict()
+
+
+plt.figure(figsize=(8, 4))
+plt.plot(rewards)
+plt.xlabel("Episode", fontsize=14)
+plt.ylabel("Sum of rewards", fontsize=14)
+plt.show()
