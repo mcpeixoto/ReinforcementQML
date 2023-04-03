@@ -72,7 +72,7 @@ def normalize_state(state):
 
 # TODO: Eliminate n_qubits as a parameter
 class Acrobot():
-    def __init__(self, reuploading=True, reps=6, batch_size=16, lr=0.01, n_episodes=1000, discount_rate = 0.99, show_game=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=16, lr=0.01, n_episodes=1000, max_steps=200, discount_rate = 0.99, show_game=False):
         for key, value in locals().items():
             setattr(self, key, value)
 
@@ -180,7 +180,7 @@ class Acrobot():
         mask = torch.nn.functional.one_hot(Tensor(actions).long(), self.n_outputs)
         
         # Evaluate the loss
-        all_Q_values = self.classifier(states) # Returns the probabilities for each quantum state
+        all_Q_values = self.classifier(states)
         Q_values = torch.sum(all_Q_values * mask, dim=1, keepdims=True)
         loss = torch.mean((Q_values - Tensor(target_Q_values))**2)
         
@@ -191,18 +191,18 @@ class Acrobot():
 
     def train(self):
         # Initialize variables
-        
+        # TODO: IMPROVE
         rewards = [] 
         best_score = 0
 
         # We let the agent train for 2000 episodes
-        for episode in range(1000):
+        for episode in range(self.n_episodes):
             
             # Run enviroment simulation
             obs, _ = self.env.reset()  
 
             # 200 is the target score for considering the environment solved
-            for step in range(200):
+            for step in range(self.max_steps):
                 
                 # Manages the transition from exploration to exploitation
                 epsilon = max(1 - episode / 1500, 0.01)
