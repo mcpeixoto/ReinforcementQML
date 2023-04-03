@@ -56,15 +56,28 @@ def normalize_state(state):
     Source: https://www.gymlibrary.dev/environments/classic_control/acrobot/
     """
 
-    assert len(state) == 6, "Is this state from the AcroBot environment? It should have 4 elements."
 
-    # Normalize the state to be between -pi and pi
-    state[0] = state[0] * np.pi
-    state[1] = state[1] * np.pi
-    state[2] = state[2] * np.pi
-    state[3] = state[3] * np.pi
-    state[4] = state[4] / 4
-    state[5] = state[5] / 9
+    if len(state.shape) == 1:
+        assert len(state) == 6, f"Is this state from the AcroBot environment? It should have 4 elements.\n State: {state}"
+
+        # Normalize the state to be between -pi and pi
+        state[0] = state[0] * np.pi
+        state[1] = state[1] * np.pi
+        state[2] = state[2] * np.pi
+        state[3] = state[3] * np.pi
+        state[4] = state[4] / 4
+        state[5] = state[5] / 9
+
+    elif len(state.shape) == 2:
+        assert state.shape[1] == 6, f"Is this state from the AcroBot environment? It should have 4 elements.\n State: {state}"
+
+        # Normalize the state to be between -pi and pi
+        state[:,0] = state[:,0] * np.pi
+        state[:,1] = state[:,1] * np.pi
+        state[:,2] = state[:,2] * np.pi
+        state[:,3] = state[:,3] * np.pi
+        state[:,4] = state[:,4] / 4
+        state[:,5] = state[:,5] / 9
 
     return state
 
@@ -72,7 +85,7 @@ def normalize_state(state):
 
 # TODO: Eliminate n_qubits as a parameter
 class Acrobot():
-    def __init__(self, reuploading=True, reps=6, batch_size=16, lr=0.01, n_episodes=1000, max_steps=200, discount_rate = 0.99, show_game=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=16, lr=0.01, n_episodes=1000, max_steps=250, discount_rate = 0.99, show_game=False):
         for key, value in locals().items():
             setattr(self, key, value)
 
@@ -135,8 +148,8 @@ class Acrobot():
 
     def classifier(self, state, no_grad=False):
         # Normalize state
-        state = normalize_state(state)
         state = Tensor(state)
+        state = normalize_state(state)
 
         if no_grad:
             with torch.no_grad():
@@ -193,7 +206,7 @@ class Acrobot():
         # Initialize variables
         # TODO: IMPROVE
         rewards = [] 
-        best_score = 0
+        best_score = self.max_steps
 
         # We let the agent train for 2000 episodes
         for episode in range(self.n_episodes):
@@ -201,25 +214,25 @@ class Acrobot():
             # Run enviroment simulation
             obs, _ = self.env.reset()  
 
-            # 200 is the target score for considering the environment solved
             for step in range(self.max_steps):
                 
                 # Manages the transition from exploration to exploitation
-                epsilon = max(1 - episode / 1500, 0.01)
+                # Based on np.exp and decay
+                epsilon = max(2-np.exp(episode/20), 0.01) # TODO: There's probably room to improve this
                 obs, reward, done, info = self.play_one_step(obs, epsilon)
                 if done:
                     break
             rewards.append(step)
             
-            # Saving best agent
-            if step >= best_score:
-                # torch.save(model.state_dict(), './new_model_best_weights.pth') # Save best weights
+            # Saving best agent (the one that ends the fastest)
+            if step <= best_score:
+                torch.save(self.model.state_dict(), './best_model.pth') # Save best weights
                 best_score = step
                 
-            print("\rEpisode: {}, Steps : {}, eps: {:.3f}".format(episode, step + 1, epsilon), end="")
+            print("\rEpisode: {}, Steps : {}, Eps: {:.3f}, epsilon: {:.3f}, Best score: {}".format(episode, step, epsilon, epsilon, best_score), end="")
             
             # Start training only after some exploration experiences  
-            if episode > 20:
+            if episode > 5:
                 self.training_step()
 
 
