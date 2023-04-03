@@ -85,7 +85,7 @@ def normalize_state(state):
 
 # TODO: Eliminate n_qubits as a parameter
 class Acrobot():
-    def __init__(self, reuploading=True, reps=6, batch_size=16, lr=0.01, n_episodes=1000, max_steps=250, discount_rate = 0.99, show_game=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, max_steps=200, discount_rate = 0.99, show_game=False):
         for key, value in locals().items():
             setattr(self, key, value)
 
@@ -109,7 +109,7 @@ class Acrobot():
         ######################
 
         # Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
-        self.qc = VQC(num_qubits = self.n_qubits, reuploading = False)
+        self.qc = VQC(num_qubits = self.n_qubits, reuploading = reuploading)
 
         # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
         # The first four parameters are for the inputs 
@@ -174,7 +174,7 @@ class Acrobot():
             action = np.random.randint(self.n_outputs)
         else:
             Q_values = self.classifier(state, no_grad=True)
-            action = np.argmax(Q_values[0])
+            action = np.argmax(Q_values)
 
         next_state, reward, done, info, _ = self.env.step(action)
         self.replay_memory.append((state, action, reward, next_state, done))
@@ -188,9 +188,17 @@ class Acrobot():
         # Evaluate Target Q-values
         next_Q_values = self.classifier(next_states, no_grad=True)
         max_next_Q_values = np.max(next_Q_values, axis=1)
+
         target_Q_values = (rewards + (1 - dones) * self.discount_rate * max_next_Q_values)
         target_Q_values = target_Q_values.reshape(-1, 1)
-        mask = torch.nn.functional.one_hot(Tensor(actions).long(), self.n_outputs)
+
+        # Convert the actions (e.g [1, 0, 2, 1, 1..]) into one hot encoding :
+        # [[0, 1, 0],
+        #  [1, 0, 0],
+        #  [0, 0, 1],
+        #  [0, 1, 0],
+        #  [0, 1, 0],
+        mask = torch.nn.functional.one_hot(Tensor(actions).long(), self.n_outputs) 
         
         # Evaluate the loss
         all_Q_values = self.classifier(states)
@@ -204,7 +212,6 @@ class Acrobot():
 
     def train(self):
         # Initialize variables
-        # TODO: IMPROVE
         rewards = [] 
         best_score = self.max_steps
 
@@ -218,21 +225,21 @@ class Acrobot():
                 
                 # Manages the transition from exploration to exploitation
                 # Based on np.exp and decay
-                epsilon = max(2-np.exp(episode/20), 0.01) # TODO: There's probably room to improve this
+                epsilon = max(2-np.exp(episode/50), 0.01) # TODO: There's probably room to improve this
                 obs, reward, done, info = self.play_one_step(obs, epsilon)
                 if done:
                     break
             rewards.append(step)
             
             # Saving best agent (the one that ends the fastest)
-            if step <= best_score:
+            if step+1 < best_score:
                 torch.save(self.model.state_dict(), './best_model.pth') # Save best weights
                 best_score = step
                 
             print("\rEpisode: {}, Steps : {}, Eps: {:.3f}, epsilon: {:.3f}, Best score: {}".format(episode, step, epsilon, epsilon, best_score), end="")
             
             # Start training only after some exploration experiences  
-            if episode > 5:
+            if episode > 20:
                 self.training_step()
 
 
