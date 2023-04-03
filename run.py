@@ -155,7 +155,7 @@ class Acrobot():
             with torch.no_grad():
                 Q_values = self.model(state).numpy()
         else:
-            Q_values = self.model(state).detach().numpy()
+            Q_values = self.model(state)
         return Q_values
 
 
