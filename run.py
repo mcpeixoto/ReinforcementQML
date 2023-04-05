@@ -85,7 +85,7 @@ def normalize_state(state):
 
 # TODO: Eliminate n_qubits as a parameter
 class Acrobot():
-    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, max_steps=200, discount_rate = 0.99, show_game=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=8, lr=0.01, n_episodes=1000, max_steps=500, discount_rate = 0.99, show_game=False):
         for key, value in locals().items():
             setattr(self, key, value)
 
@@ -109,7 +109,7 @@ class Acrobot():
         ######################
 
         # Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
-        self.qc = VQC(num_qubits = self.n_qubits, reuploading = reuploading)
+        self.qc = VQC(num_qubits = self.n_qubits, reuploading = reuploading, reps = reps)
 
         # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
         # The first four parameters are for the inputs 
@@ -123,7 +123,8 @@ class Acrobot():
         ######################
 
         # Select a quantum backend to run the simulation of the quantum circuit
-        qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'))
+        # https://qiskit.org/documentation/stable/0.19/stubs/qiskit.providers.aer.StatevectorSimulator.html
+        qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'), backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0})
 
         # Create a Quantum Neural Network object starting from the quantum circuit defined above
         self.qnn = CircuitQNN(self.qc, input_params=X, weight_params=params, quantum_instance = qi)
@@ -144,6 +145,11 @@ class Acrobot():
 
         self.replay_memory = deque(maxlen=10000)
         self.optimizer = Adam(self.model.parameters(), lr=lr)
+
+        self.rewards = []
+        self.episodes_won = 0
+
+        self.qc.draw(output='mpl', filename='qc.png')
 
 
     def classifier(self, state, no_grad=False):
@@ -212,11 +218,11 @@ class Acrobot():
 
     def train(self):
         # Initialize variables
-        rewards = [] 
-        best_score = self.max_steps
+        best_score = -np.inf
 
         # We let the agent train for 2000 episodes
         for episode in range(self.n_episodes):
+            total_reward = 0
             
             # Run enviroment simulation
             obs, _ = self.env.reset()  
@@ -227,23 +233,34 @@ class Acrobot():
                 # Based on np.exp and decay
                 epsilon = max(2-np.exp(episode/50), 0.01) # TODO: There's probably room to improve this
                 obs, reward, done, info = self.play_one_step(obs, epsilon)
+                total_reward += reward
+                
                 if done:
+                    self.episodes_won += 1
                     break
-            rewards.append(step)
+            self.rewards.append(total_reward)
             
             # Saving best agent (the one that ends the fastest)
-            if step+1 < best_score:
+            if total_reward > best_score:
                 torch.save(self.model.state_dict(), './best_model.pth') # Save best weights
-                best_score = step
+                best_score = total_reward
                 
-            print("\rEpisode: {}, Steps : {}, Eps: {:.3f}, epsilon: {:.3f}, Best score: {}".format(episode, step, epsilon, epsilon, best_score), end="")
+            print("\rEpisode: {}, Steps : {}, Eps: {:.3f}, epsilon: {:.3f}, Best score: {}, Current Reward: {}, Episodes Won: {}".format(episode, step +1, epsilon, epsilon, best_score, total_reward, self.episodes_won), end="")
             
             # Start training only after some exploration experiences  
-            if episode > 20:
+            if episode > 10:
                 self.training_step()
 
 
 
 if __name__ == "__main__":
-    acrobot = Acrobot(show_game=True)
+    acrobot = Acrobot(show_game=False)
     acrobot.train()
+
+    # Plot rewards
+    plt.plot(acrobot.rewards)
+
+    # Save everything
+    import pickle
+    with open('acrobot.pkl', 'wb') as f:
+        pickle.dump(acrobot, f)
