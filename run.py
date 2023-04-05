@@ -37,7 +37,7 @@ torch.manual_seed(seed)
 
 # TODO: Eliminate n_qubits as a parameter
 class CardPole():
-    def __init__(self, reuploading=True, reps=6, batch_size=8, lr=0.01, n_episodes=1000, max_steps=500, discount_rate = 0.99, show_game=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=50, max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False):
         for key, value in locals().items():
             setattr(self, key, value)
 
@@ -57,57 +57,66 @@ class CardPole():
         self.n_qubits = int(self.input_shape[0])
 
         ######################
-        # CREATE PQC
+        # CREATE MODEL
         ######################
 
-        # Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
-        self.qc = VQC(num_qubits = self.n_qubits, reuploading = reuploading, reps = reps)
+        if not self.is_classical:
+            # Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
+            self.qc = VQC(num_qubits=self.n_qubits, reuploading=reuploading, reps=reps)
 
-        # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
-        # The first four parameters are for the inputs 
-        X = list(self.qc.parameters)[: self.n_qubits]
+            # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
+            # The first four parameters are for the inputs
+            X = list(self.qc.parameters)[: self.n_qubits]
 
-        # The remaining ones are the trainable weights of the quantum neural network
-        params = list(self.qc.parameters)[self.n_qubits:]
+            # The remaining ones are the trainable weights of the quantum neural network
+            params = list(self.qc.parameters)[self.n_qubits:]
 
-        ######################
-        # PyTorch Layer
-        ######################
+            # Select a quantum backend to run the simulation of the quantum circuit
+            # https://qiskit.org/documentation/stable/0.19/stubs/qiskit.providers.aer.StatevectorSimulator.html
+            qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'),
+                                  backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0})
+                                                   #"statevector_parallel_threshold": 0})
 
-        # Select a quantum backend to run the simulation of the quantum circuit
-        # https://qiskit.org/documentation/stable/0.19/stubs/qiskit.providers.aer.StatevectorSimulator.html
-        qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'), backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0, "statevector_parallel_threshold": 0})
+            # Create a Quantum Neural Network object starting from the quantum circuit defined above
+            self.qnn = CircuitQNN(self.qc, input_params=X, weight_params=params, quantum_instance=qi)
 
-        # Create a Quantum Neural Network object starting from the quantum circuit defined above
-        self.qnn = CircuitQNN(self.qc, input_params=X, weight_params=params, quantum_instance = qi)
+            # Connect to PyTorch
+            initial_weights = (2 * np.random.rand(self.qnn.num_weights) - 1)  # Random initial weights
+            quantum_nn = TorchConnector(self.qnn, initial_weights)
 
-        # Connect to PyTorch
-        initial_weights = (2*np.random.rand(self.qnn.num_weights) - 1) # Random initial weights
-        quantum_nn = TorchConnector(self.qnn, initial_weights)
+            exp_val = exp_val_layer(n_qubits=self.n_qubits, n_meas=self.n_outputs)
 
-        exp_val = exp_val_layer(n_qubits=self.n_qubits, n_meas=self.n_outputs)
-
-        # Stack the classical and quantum layers together 
-        self.model = torch.nn.Sequential(quantum_nn, exp_val)
+            # Stack the classical and quantum layers together
+            self.model = torch.nn.Sequential(quantum_nn, exp_val)
 
 
-        ######################
+        else:
+            # Create a classical neural network
+            self.model = torch.nn.Sequential(
+                torch.nn.Linear(self.input_shape[0], 32),
+                torch.nn.ReLU(),
+                torch.nn.Linear(32, 16),
+                torch.nn.ReLU(),
+                torch.nn.Linear(16, self.n_outputs)
+                )
+
         # Initialize variables
-        ######################
-
         self.replay_memory = deque(maxlen=10000)
         self.optimizer = Adam(self.model.parameters(), lr=lr)
 
         self.rewards = []
         self.episodes_won = 0
 
-        self.qc.draw(output='mpl', filename='qc.png')
+        # Draw the circuit
+        if not self.is_classical:
+            self.qc.draw(output='mpl', filename='qc.png')
 
 
     def classifier(self, state, no_grad=False):
         # Normalize state
         state = Tensor(state)
-        state = normalize_CardPole(state)
+        if not self.is_classical:
+            state = normalize_CardPole(state)
 
         if no_grad:
             with torch.no_grad():
@@ -115,7 +124,6 @@ class CardPole():
         else:
             Q_values = self.model(state)
         return Q_values
-
 
 
     def sample_experiences(self):
@@ -172,6 +180,16 @@ class CardPole():
         # Initialize variables
         best_score = -np.inf
 
+        # Exploratory episodes
+        for episode in range(self.n_exploratory_episodes):
+            obs, _ = self.env.reset()  
+            for step in range(self.max_steps):
+                obs, reward, done, info = self.play_one_step(obs, epsilon=1)
+                if done:
+                    break
+            self.rewards.append(step)
+            print(f"\r[INFO] Episode: {episode} | Eps: 1.000 | Steps (Curr Reward): {step}", end="")
+
         # We let the agent train for 2000 episodes
         for episode in range(self.n_episodes):
             
@@ -182,7 +200,8 @@ class CardPole():
                 
                 # Manages the transition from exploration to exploitation
                 # Based on np.exp and decay
-                epsilon = max(2-np.exp((episode-100)/500), 0.01) # TODO: There's probably room to improve this
+                
+                epsilon = max(1 - episode / 500, 0.01) # TODO: There's probably room to improve this
                 obs, reward, done, info = self.play_one_step(obs, epsilon)
                 
                 if done:
@@ -204,11 +223,12 @@ class CardPole():
 
 
 if __name__ == "__main__":
-    CardPole = CardPole(show_game=False)
+    CardPole = CardPole(show_game=False, is_classical=False)
     CardPole.train()
 
     # Plot rewards
     plt.plot(CardPole.rewards)
+    plt.show()
 
     # Save everything
     import pickle
