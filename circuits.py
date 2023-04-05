@@ -103,6 +103,8 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
 class exp_val_layer(torch.nn.Module):
     def __init__(self, n_qubits = 3, n_meas = 3):
         super().__init__()
+        self.n_qubits = n_qubits
+        self.n_meas = n_meas
 
         # All possibilitiies of states given the number of qubits
         states = [bin(x)[2:].zfill(n_qubits) for x in range(2**n_qubits)]
@@ -119,6 +121,7 @@ class exp_val_layer(torch.nn.Module):
     def forward(self, x):
         """Forward step, as described above."""
         
+        """
         expval_1 = self.mask1 * x
         expval_2 = self.mask2 * x
         expval_3 = self.mask3 * x
@@ -136,5 +139,25 @@ class exp_val_layer(torch.nn.Module):
             expval_2 = torch.sum(expval_1, dim = 1, keepdim = True)
             expval_3 = torch.sum(expval_1, dim = 1, keepdim = True)
             out = torch.cat((expval_1, expval_2, expval_3), 1) # Shape: (batch_size, 3)
+        """
+
+        # General case
+
+        # Create expval tensor
+        for i in range(self.n_meas):
+            setattr(self, 'expval'+str(i+1), getattr(self, 'mask'+str(i+1)) * x)
+
+        # Single sample
+        if len(x.shape) == 1:
+            for i in range(self.n_meas):
+                setattr(self, 'expval'+str(i+1), torch.sum(getattr(self, 'expval'+str(i+1))))
+            out = torch.cat([getattr(self, 'expval'+str(i+1)).unsqueeze(0) for i in range(self.n_meas)], 0)
+
+        # Batch of samples
+        else:
+            for i in range(self.n_meas):
+                setattr(self, 'expval'+str(i+1), torch.sum(getattr(self, 'expval'+str(i+1)), dim = 1, keepdim = True))
+            out = torch.cat([getattr(self, 'expval'+str(i+1)) for i in range(self.n_meas)], 1)
+    
                 
         return ((out + 1.) / 2.)
