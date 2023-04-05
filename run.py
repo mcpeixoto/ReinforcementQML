@@ -27,7 +27,7 @@ import gym
 
 
 from circuits import VQC, exp_val_layer
-
+from normalize import normalize_CardPole, normalize_AcroBot
 
 # Fix seed for reproducibility
 seed = 42
@@ -35,56 +35,8 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 
-    
-def normalize_state(state):
-    """
-    This function will normalize a state given from
-    the AcroBot environment so it can be used by a quantum circuit
-    using Angle Encoding.
-
-    Observation Space:
-    | Num | Observation                | Min                 | Max               |
-    |-----|----------------------------|---------------------|-------------------|
-    | 0   | Cosine of theta1           | -1                  | 1                 |
-    | 1   | Sine of theta1             | -1                  | 1                 |
-    | 2   | Cosine of theta2           | -1                  | 1                 |
-    | 3   | Sine of theta2             | -1                  | 1                 |
-    | 4   | Angular velocity of theta1 | ~ -12.567 (-4 * pi) | ~ 12.567 (4 * pi) |
-    | 5   | Angular velocity of theta2 | ~ -28.274 (-9 * pi) | ~ 28.274 (9 * pi) |
-
-    
-    Source: https://www.gymlibrary.dev/environments/classic_control/acrobot/
-    """
-
-
-    if len(state.shape) == 1:
-        assert len(state) == 6, f"Is this state from the AcroBot environment? It should have 4 elements.\n State: {state}"
-
-        # Normalize the state to be between -pi and pi
-        state[0] = state[0] * np.pi
-        state[1] = state[1] * np.pi
-        state[2] = state[2] * np.pi
-        state[3] = state[3] * np.pi
-        state[4] = state[4] / 4
-        state[5] = state[5] / 9
-
-    elif len(state.shape) == 2:
-        assert state.shape[1] == 6, f"Is this state from the AcroBot environment? It should have 4 elements.\n State: {state}"
-
-        # Normalize the state to be between -pi and pi
-        state[:,0] = state[:,0] * np.pi
-        state[:,1] = state[:,1] * np.pi
-        state[:,2] = state[:,2] * np.pi
-        state[:,3] = state[:,3] * np.pi
-        state[:,4] = state[:,4] / 4
-        state[:,5] = state[:,5] / 9
-
-    return state
-
-
-
 # TODO: Eliminate n_qubits as a parameter
-class Acrobot():
+class CardPole():
     def __init__(self, reuploading=True, reps=6, batch_size=8, lr=0.01, n_episodes=1000, max_steps=500, discount_rate = 0.99, show_game=False):
         for key, value in locals().items():
             setattr(self, key, value)
@@ -94,9 +46,9 @@ class Acrobot():
         ######################
 
         if show_game:
-            self.env = gym.make('Acrobot-v1', render_mode='human')
+            self.env = gym.make('CartPole-v1', render_mode='human')
         else:
-            self.env = gym.make('Acrobot-v1')
+            self.env = gym.make('CartPole-v1')
 
         self.input_shape = self.env.observation_space.shape
         self.n_outputs = self.env.action_space.n
@@ -124,7 +76,7 @@ class Acrobot():
 
         # Select a quantum backend to run the simulation of the quantum circuit
         # https://qiskit.org/documentation/stable/0.19/stubs/qiskit.providers.aer.StatevectorSimulator.html
-        qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'), backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0})
+        qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'), backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0, "statevector_parallel_threshold": 0})
 
         # Create a Quantum Neural Network object starting from the quantum circuit defined above
         self.qnn = CircuitQNN(self.qc, input_params=X, weight_params=params, quantum_instance = qi)
@@ -155,7 +107,7 @@ class Acrobot():
     def classifier(self, state, no_grad=False):
         # Normalize state
         state = Tensor(state)
-        state = normalize_state(state)
+        state = normalize_CardPole(state)
 
         if no_grad:
             with torch.no_grad():
@@ -222,7 +174,6 @@ class Acrobot():
 
         # We let the agent train for 2000 episodes
         for episode in range(self.n_episodes):
-            total_reward = 0
             
             # Run enviroment simulation
             obs, _ = self.env.reset()  
@@ -231,22 +182,21 @@ class Acrobot():
                 
                 # Manages the transition from exploration to exploitation
                 # Based on np.exp and decay
-                epsilon = max(2-np.exp(episode/50), 0.01) # TODO: There's probably room to improve this
+                epsilon = max(2-np.exp((episode-100)/500), 0.01) # TODO: There's probably room to improve this
                 obs, reward, done, info = self.play_one_step(obs, epsilon)
-                total_reward += reward
                 
                 if done:
-                    self.episodes_won += 1
                     break
-            self.rewards.append(total_reward)
+            self.rewards.append(step)
             
             # Saving best agent (the one that ends the fastest)
-            if total_reward > best_score:
+            if step > best_score:
                 torch.save(self.model.state_dict(), './best_model.pth') # Save best weights
-                best_score = total_reward
+                best_score = step
                 
-            print("\rEpisode: {}, Steps : {}, Eps: {:.3f}, epsilon: {:.3f}, Best score: {}, Current Reward: {}, Episodes Won: {}".format(episode, step +1, epsilon, epsilon, best_score, total_reward, self.episodes_won), end="")
             
+            print(f"\r[INFO] Episode: {episode} | Eps: {epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score}", end="")
+
             # Start training only after some exploration experiences  
             if episode > 10:
                 self.training_step()
@@ -254,13 +204,13 @@ class Acrobot():
 
 
 if __name__ == "__main__":
-    acrobot = Acrobot(show_game=False)
-    acrobot.train()
+    CardPole = CardPole(show_game=False)
+    CardPole.train()
 
     # Plot rewards
-    plt.plot(acrobot.rewards)
+    plt.plot(CardPole.rewards)
 
     # Save everything
     import pickle
-    with open('acrobot.pkl', 'wb') as f:
-        pickle.dump(acrobot, f)
+    with open('CardPole.pkl', 'wb') as f:
+        pickle.dump(CardPole, f)
