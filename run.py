@@ -3,6 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 import pickle
+import os
+from os import mkdir
+from os.path import basename, join, exists
+import hashlib
 
 # Qiskit Circuit imports
 from qiskit.circuit import QuantumCircuit, QuantumRegister, Parameter, ParameterVector, ParameterExpression
@@ -26,21 +30,28 @@ from torch.optim import LBFGS, SGD, Adam, RMSprop
 # OpenAI Gym import
 import gym
 
-
+# Quantum circuits
 from circuits import VQC, exp_val_layer
-from normalize import normalize_CardPole, normalize_AcroBot
 
 # Fix seed for reproducibility
 seed = 42
 np.random.seed(seed)
 torch.manual_seed(seed)
 
+# Defining directories
+model_dir = "models"
+if not exists(model_dir):
+    mkdir(model_dir)
 
-# TODO: Eliminate n_qubits as a parameter
+# TODO: tensorboard
+
 class CardPole():
-    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=50, max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=10, max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False):
+        self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
-            setattr(self, key, value)
+            if key != "self":
+                setattr(self, key, value)
+                self.bookkeeping[key] = value
 
         ######################
         # OpenAI Gym
@@ -106,18 +117,32 @@ class CardPole():
         self.optimizer = Adam(self.model.parameters(), lr=lr)
 
         self.rewards = []
-        self.episodes_won = 0
+        self.win_thr = 5    # If we win self.win_thr times in a row, we stop the training
+        self.win_cnt = 0    # Counter for the number of consecutive wins
+        self.win_score = 200    # Score to reach to win the game
+        self.done = False   # Flag to indicate if the training is done
+
+        # Create an unique name for this run
+        string = ''
+        for key, item in self.bookkeeping.items():
+            string += str(item)
+        self.name = hashlib.md5(string.encode()).hexdigest()
+
+        # Saving dir
+        self.save_dir = join(model_dir, self.name)
+        if not exists(self.save_dir):
+            mkdir(self.save_dir)
+        else:
+            print("WARNING: model already exists!") # TODO: Add methods to resume training, load model, etc.
 
         # Draw the circuit
-        if not self.is_classical:
+        if draw_circuit:
             self.qc.draw(output='mpl', filename='qc.png')
 
 
     def classifier(self, state, no_grad=False):
         # Normalize state
         state = Tensor(state)
-        if not self.is_classical:
-            state = normalize_CardPole(state)
 
         if no_grad:
             with torch.no_grad():
@@ -188,8 +213,6 @@ class CardPole():
                 obs, reward, done, info = self.play_one_step(obs, epsilon=1)
                 if done:
                     break
-            # self.rewards.append(step)
-            print(f"\r[INFO] Episode: {episode} | Eps: 1.000 | Steps (Curr Reward): {step}", end="")
 
         # We let the agent train for 2000 episodes
         for episode in range(self.n_episodes):
@@ -208,24 +231,49 @@ class CardPole():
                 if done:
                     break
             self.rewards.append(step)
+
+            # Winning thr
+            if step+1 >= self.win_score:
+                self.win_cnt += 1
+            else:
+                self.win_cnt = 0
+
+            if self.win_cnt >= self.win_thr:
+                self.done = True
+                self.save() # Save the model
+                print(f"\r[INFO] Episode: {episode} | Eps: {epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score} | Win!!!")
+                break
             
             # Saving best agent (the one that ends the fastest)
             if step > best_score:
-                torch.save(self.model.state_dict(), './best_model.pth') # Save best weights
+                self.save() # Save the model
                 best_score = step
                 
             
             print(f"\r[INFO] Episode: {episode} | Eps: {epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score}", end="")
 
             # Start training only after some exploration experiences  
-            if episode > 10:
+            if episode % 5 == 0:
                 self.training_step()
 
+        # If it gets here, it means it didn't win
+        self.done = True
+        self.save(save_model=False) # Save bookkeeping, not the model (it's not the best one)
 
-            # Save rewards
-            if episode % 10 == 0:
-                with open('rewards.pkl', 'wb') as f:
-                    pickle.dump(self.rewards, f)
+
+    def save(self, save_model=True):
+        # Save the remaining parameters to bookkeeping
+        self.bookkeeping['rewards'] = self.rewards
+        self.bookkeeping['done'] = self.done
+        
+        # Save the model
+        if save_model:
+            torch.save(self.model.state_dict(), join(self.save_dir, 'model.pth'))
+
+        # Save the parameters
+        with open(join(self.save_dir, 'params.pkl'), 'wb') as f:
+            pickle.dump(self.bookkeeping, f)
+
 
 
 if __name__ == "__main__":
