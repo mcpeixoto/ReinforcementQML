@@ -90,15 +90,16 @@ class CardPole():
 
             # Select a quantum backend to run the simulation of the quantum circuit
             # https://qiskit.org/documentation/stable/0.19/stubs/qiskit.providers.aer.StatevectorSimulator.html
-            qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'),
-                                  backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0})
-                                                   #"statevector_parallel_threshold": 0})
+            qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'))
+            #                      backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0})
+            #                                       #"statevector_parallel_threshold": 0})
 
             # Create a Quantum Neural Network object starting from the quantum circuit defined above
             self.qnn = CircuitQNN(self.qc, input_params=X, weight_params=params, quantum_instance=qi)
 
             # Connect to PyTorch
-            initial_weights = (2 * np.random.rand(self.qnn.num_weights) - 1)  # Random initial weights
+            initial_weights = np.random.normal(0, 1, self.qnn.num_weights)
+
             quantum_nn = TorchConnector(self.qnn, initial_weights)
 
             exp_val = exp_val_layer(n_qubits=self.n_qubits, n_meas=self.n_outputs)
