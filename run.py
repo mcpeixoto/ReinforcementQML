@@ -27,6 +27,9 @@ from torch import Tensor
 from torch.nn import MSELoss
 from torch.optim import LBFGS, SGD, Adam, RMSprop
 
+# Tensorboard
+from torch.utils.tensorboard import SummaryWriter
+
 # OpenAI Gym import
 import gym
 
@@ -46,12 +49,15 @@ if not exists(model_dir):
 # TODO: tensorboard
 
 class CardPole():
-    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=10, max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False):
+    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=10, 
+                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
             if key != "self":
                 setattr(self, key, value)
-                self.bookkeeping[key] = value
+
+                if key not in ["show_game", "draw_circuit"]:
+                    self.bookkeeping[key] = value
 
         ######################
         # OpenAI Gym
@@ -134,6 +140,13 @@ class CardPole():
             mkdir(self.save_dir)
         else:
             print("WARNING: model already exists!") # TODO: Add methods to resume training, load model, etc.
+            raise Exception
+
+        # Tensorboard
+        self.writer = SummaryWriter(log_dir=self.save_dir)
+        # Add model parameters to tensorboard
+        for key, value in self.bookkeeping.items():
+            self.writer.add_text(key, str(value))
 
         # Draw the circuit
         if draw_circuit:
@@ -202,6 +215,9 @@ class CardPole():
         loss.backward()
         self.optimizer.step()
 
+        # Log the loss
+        self.writer.add_scalar('Loss', loss, self.episode)
+
     def train(self):
         # Initialize variables
         best_score = -np.inf
@@ -216,6 +232,7 @@ class CardPole():
 
         # We let the agent train for 2000 episodes
         for episode in range(self.n_episodes):
+            self.episode = episode
             
             # Run enviroment simulation
             obs, _ = self.env.reset()  
@@ -230,7 +247,10 @@ class CardPole():
                 
                 if done:
                     break
-            self.rewards.append(step)
+
+            # Log the reward
+            self.writer.add_scalar('Reward', step, episode)
+            self.rewards.append(step) # TODO: A little rudundant
 
             # Winning thr
             if step+1 >= self.win_score:
@@ -248,6 +268,9 @@ class CardPole():
             if step > best_score:
                 self.save() # Save the model
                 best_score = step
+
+                # Log the best score
+                self.writer.add_scalar('Best score', best_score, episode)
                 
             
             print(f"\r[INFO] Episode: {episode} | Eps: {epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score}", end="")
