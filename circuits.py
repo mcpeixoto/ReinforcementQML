@@ -25,20 +25,22 @@ from torch.optim import LBFGS, SGD, Adam, RMSprop
 import gym
 
 
-def encode_data(inputs, num_qubits = 3):
+def encode_data(inputs, num_qubits = 3, weights=None):
     # inputs.shape = (6,)
 
     qc = qk.QuantumCircuit(num_qubits)
 
     # Encode data with a RX rotation
-    for i in range(num_qubits): 
-        qc.rx(inputs[i], i)
-
+    for i in range(num_qubits):
+        if weights is None:
+            qc.rx(inputs[i], i)
+        else:
+            qc.rx(inputs[i]*weights[i], i)
 
     return qc
 
+# TODO: Add output weights
 def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
-    
     
     if measure:
         qr = qk.QuantumRegister(num_qubits, 'qr')
@@ -49,13 +51,13 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
         qc = qk.QuantumCircuit(qr)
     
     # Define a vector containg Inputs as parameters (*not* to be optimized)
-    inputs = qk.circuit.ParameterVector('x', 6)
-    
-    
+    inputs = qk.circuit.ParameterVector('x', num_qubits)
+
     if not reuploading:
+        input_weights = qk.circuit.ParameterVector('w', num_qubits)
                 
         # Encode classical input data
-        qc.compose(encode_data(inputs, num_qubits = num_qubits), inplace = True)
+        qc.compose(encode_data(inputs, num_qubits = num_qubits, weights=input_weights), inplace = True)
         qc.barrier()
         
         # Variational circuit
@@ -75,9 +77,10 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
         
         # Iterate for a number of repetitions
         for rep in range(reps):
+            input_weights = qk.circuit.ParameterVector(f'w{rep}', num_qubits)
 
             # Encode classical input data
-            qc.compose(encode_data(inputs, num_qubits = num_qubits), inplace = True)
+            qc.compose(encode_data(inputs, num_qubits = num_qubits, weights=input_weights), inplace = True)
             qc.barrier()
                 
             # Variational circuit (does the same as TwoLocal from Qiskit)
