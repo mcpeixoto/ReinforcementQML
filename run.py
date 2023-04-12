@@ -50,7 +50,7 @@ if not exists(model_dir):
 
 class CardPole():
     def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=10, 
-                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False):
+                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, run_number=0):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
             if key != "self":
