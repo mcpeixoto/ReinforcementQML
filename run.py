@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
+import pickle
 
 # Qiskit Circuit imports
 from qiskit.circuit import QuantumCircuit, QuantumRegister, Parameter, ParameterVector, ParameterExpression
@@ -220,6 +221,11 @@ class CardPole():
             if episode > 10:
                 self.training_step()
 
+
+            # Save rewards
+            if episode % 10 == 0:
+                with open('rewards.pkl', 'wb') as f:
+                    pickle.dump(self.rewards, f)
 
 
 if __name__ == "__main__":
