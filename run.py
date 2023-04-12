@@ -188,7 +188,7 @@ class CardPole():
                 obs, reward, done, info = self.play_one_step(obs, epsilon=1)
                 if done:
                     break
-            self.rewards.append(step)
+            # self.rewards.append(step)
             print(f"\r[INFO] Episode: {episode} | Eps: 1.000 | Steps (Curr Reward): {step}", end="")
 
         # We let the agent train for 2000 episodes
