@@ -238,12 +238,14 @@ class CardPole():
 
             for step in range(self.max_steps):
                 
-                # Manages the transition from exploration to exploitation
-                # Based on np.exp and decay
-                
+                # Compute epsilon
                 epsilon = max(1 - episode / 500, 0.01) # TODO: There's probably room to improve this
-                obs, reward, done, info = self.play_one_step(obs, epsilon)
+
+                # Log the epsilon
+                self.writer.add_scalar('Epsilon', epsilon, episode)
                 
+                # Play one step
+                obs, reward, done, info = self.play_one_step(obs, epsilon)
                 if done:
                     break
 
