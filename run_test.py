@@ -6,7 +6,7 @@ import numpy as np
 
 
 def worker(number):
-    algorithm = CardPole(show_game=False, is_classical=False, run_number=number)
+    algorithm = CardPole(show_game=False, is_classical=False, seed=number)
     algorithm.train()
 
 

@@ -36,11 +36,6 @@ import gym
 # Quantum circuits
 from circuits import VQC, exp_val_layer
 
-# Fix seed for reproducibility
-seed = 42
-np.random.seed(seed)
-torch.manual_seed(seed)
-
 # Defining directories
 model_dir = "models"
 if not exists(model_dir):
@@ -50,7 +45,7 @@ if not exists(model_dir):
 
 class CardPole():
     def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=10, 
-                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, run_number=0):
+                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
             if key != "self":
@@ -58,6 +53,10 @@ class CardPole():
 
                 if key not in ["show_game", "draw_circuit"]:
                     self.bookkeeping[key] = value
+
+        # Fix seed for reproducibility
+        np.random.seed(seed)
+        torch.manual_seed(seed)
 
         ######################
         # OpenAI Gym
