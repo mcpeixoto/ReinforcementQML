@@ -116,6 +116,9 @@ class exp_val_layer(torch.nn.Module):
             # Create a mask for each measurement
             setattr(self, 'mask'+str(i+1), torch.tensor([1 if x[i]=='1' else -1 for x in states], requires_grad = False))
 
+        # Add a scaling layer which will multiply each output by an individual learnable parameter
+        self.scaling = torch.nn.Parameter(torch.ones(n_meas))
+
         #self.mask1 = torch.tensor([1 if x[0]=='1' else -1 for x in states], requires_grad = False)
         #self.mask2 = torch.tensor([1 if x[1]=='1' else -1 for x in states], requires_grad = False)
         #self.mask3 = torch.tensor([1 if x[2]=='1' else -1 for x in states], requires_grad = False)
@@ -161,6 +164,9 @@ class exp_val_layer(torch.nn.Module):
             for i in range(self.n_meas):
                 setattr(self, 'expval'+str(i+1), torch.sum(getattr(self, 'expval'+str(i+1)), dim = 1, keepdim = True))
             out = torch.cat([getattr(self, 'expval'+str(i+1)) for i in range(self.n_meas)], 1)
+
+        # Apply scaling
+        out = out * self.scaling
     
                 
         return ((out + 1.) / 2.)
