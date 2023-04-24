@@ -49,7 +49,7 @@ class continuousEncoding(gym.ObservationWrapper):
 class CardPole():
     def __init__(self, reuploading=True, reps=5, batch_size=32, lr=0.01, out_lr=0.1, n_episodes=1000, n_exploratory_episodes=10, 
                  max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42, 
-                 epsilon_decay=0.99, epsilon_min=0.01):
+                 epsilon = 1, epsilon_decay=0.9995, epsilon_min=0.01):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
             if key != "self":
@@ -251,13 +251,13 @@ class CardPole():
             for step in range(self.max_steps):
                 
                 # Compute epsilon with exponential decay
-                epsilon = max(1 - self.epsilon_decay * episode, self.epsilon_min)
+                self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
 
                 # Log the epsilon
-                self.writer.add_scalar('Epsilon', epsilon, episode)
+                self.writer.add_scalar('Epsilon', self.epsilon, episode)
                 
                 # Play one step
-                obs, reward, done, info = self.play_one_step(obs, epsilon)
+                obs, reward, done, info = self.play_one_step(obs, self.epsilon)
                 if done:
                     break
 
@@ -274,7 +274,7 @@ class CardPole():
             if self.win_cnt >= self.win_thr:
                 self.done = True
                 self.save() # Save the model
-                print(f"\r[INFO] Episode: {episode} | Eps: {epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score} | Win!!!")
+                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score} | Win!!!")
                 break
             
             # Saving best agent (the one that ends the fastest)
@@ -286,7 +286,7 @@ class CardPole():
                 self.writer.add_scalar('Best score', best_score, episode)
                 
             
-            print(f"\r[INFO] Episode: {episode} | Eps: {epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score}", end="")
+            print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score} |       ", end="")
 
             # Start training only after some exploration experiences  
             if episode % 5 == 0:
