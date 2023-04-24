@@ -47,8 +47,9 @@ class continuousEncoding(gym.ObservationWrapper):
         return np.arctan(observation)
 
 class CardPole():
-    def __init__(self, reuploading=True, reps=5, batch_size=64, lr=0.01, out_lr=0.1, n_episodes=1000, n_exploratory_episodes=10, 
-                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42):
+    def __init__(self, reuploading=True, reps=5, batch_size=32, lr=0.01, out_lr=0.1, n_episodes=1000, n_exploratory_episodes=10, 
+                 max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42, 
+                 epsilon_decay=0.99, epsilon_min=0.01):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
             if key != "self":
@@ -249,8 +250,8 @@ class CardPole():
 
             for step in range(self.max_steps):
                 
-                # Compute epsilon
-                epsilon = max(1 - episode / 500, 0.01) # TODO: There's probably room to improve this
+                # Compute epsilon with exponential decay
+                epsilon = max(1 - self.epsilon_decay * episode, self.epsilon_min)
 
                 # Log the epsilon
                 self.writer.add_scalar('Epsilon', epsilon, episode)
