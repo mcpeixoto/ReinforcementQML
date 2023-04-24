@@ -165,7 +165,7 @@ def train(agent, env, replay_buffer, target_network, optimizer, episodes):
         if  episode % TARGET_TRAIN_FREQ == 0 and  len(replay_buffer) > BATCH_SIZE:
             print("Training target network...", end="\r")
             agent.learn(replay_buffer, target_network, optimizer)
-            print("Target network trained!", end=" ")
+            print("Target network trained!", end="\r")
 
         if episode % TARGET_UPDATE_FREQ == 0:
             target_network.load_state_dict(agent.state_dict())
