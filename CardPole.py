@@ -47,9 +47,9 @@ class continuousEncoding(gym.ObservationWrapper):
         return np.arctan(observation)
 
 class CardPole():
-    def __init__(self, reuploading=True, reps=5, batch_size=32, lr=0.01, out_lr=0.1, n_episodes=1000, n_exploratory_episodes=10, 
+    def __init__(self, reuploading=True, reps=5, batch_size=16, lr=0.001, out_lr=0.1, n_episodes=1000, n_exploratory_episodes=10, 
                  max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42, 
-                 epsilon = 1, epsilon_decay=0.9995, epsilon_min=0.01):
+                 epsilon = 1, epsilon_decay=0.99, epsilon_min=0.01):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
             if key != "self":
@@ -83,7 +83,7 @@ class CardPole():
 
         if not self.is_classical:
             # Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
-            self.qc = VQC(num_qubits=self.n_qubits, reuploading=reuploading, reps=reps, measure=True)
+            self.qc = VQC(num_qubits=self.n_qubits, reuploading=reuploading, reps=reps, measure=True, n_mes=self.n_outputs)
 
             # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
             # The first four parameters are for the inputs
@@ -246,16 +246,15 @@ class CardPole():
             self.episode = episode
             
             # Run enviroment simulation
-            obs, _ = self.env.reset()  
+            obs, _ = self.env.reset()
+
+             # Compute epsilon with exponential decay
+            self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
+
+            # Log the epsilon
+            self.writer.add_scalar('Epsilon', self.epsilon, episode)
 
             for step in range(self.max_steps):
-                
-                # Compute epsilon with exponential decay
-                self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
-
-                # Log the epsilon
-                self.writer.add_scalar('Epsilon', self.epsilon, episode)
-                
                 # Play one step
                 obs, reward, done, info = self.play_one_step(obs, self.epsilon)
                 if done:
@@ -313,7 +312,7 @@ class CardPole():
 
 
 if __name__ == "__main__":
-    CardPole = CardPole(show_game=False, is_classical=False)
+    CardPole = CardPole(show_game=False, is_classical=False, draw_circuit=True)
     CardPole.train()
 
     # Plot rewards
