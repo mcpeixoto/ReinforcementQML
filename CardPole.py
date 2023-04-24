@@ -87,7 +87,7 @@ class CardPole():
             # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
             # The first four parameters are for the inputs
             X = list(self.qc.parameters)[:self.n_qubits]
-            assert np.array([str(x) for x in list(self.qc.parameters)[:self.n_qubits]]).all()
+            assert np.array(['1_Input' in str(x) for x in list(self.qc.parameters)[:self.n_qubits]]).all()
 
             # The remaining ones are the trainable weights of the quantum neural network
             params = list(self.qc.parameters)[self.n_qubits:]
@@ -127,8 +127,8 @@ class CardPole():
 
         # Initialize variables
         self.replay_memory = deque(maxlen=10000)
-        self.optimizer = Adam(self.model.parameters()[0], lr=lr)
-        self.output_optimizer = Adam(self.model.parameters()[1], lr=out_lr)
+        self.optimizer = Adam(self.model[0].parameters(), lr=lr)
+        self.output_optimizer = Adam(self.model[1].parameters(), lr=out_lr)
 
         self.rewards = []
         self.win_thr = 5    # If we win self.win_thr times in a row, we stop the training
