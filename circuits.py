@@ -40,11 +40,11 @@ def encode_data(inputs, num_qubits = 3, weights=None):
     return qc
 
 # TODO: Add output weights
-def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
+def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False, n_mes = 2):
     
     if measure:
         qr = qk.QuantumRegister(num_qubits, 'qr')
-        cr = qk.ClassicalRegister(num_qubits, 'cr')
+        cr = qk.ClassicalRegister(n_mes, 'cr')
         qc = qk.QuantumCircuit(qr,cr)
     else:
         qr = qk.QuantumRegister(num_qubits, 'qr')
@@ -65,10 +65,6 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
                reps=reps, insert_barriers= True, 
                skip_final_rotation_layer = True), inplace = True)
         qc.barrier()
-        
-        # Add final measurements
-        if measure: 
-            qc.measure(qr,cr)
         
     elif reuploading:
                 
@@ -95,9 +91,12 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
                 qc.cz(qr[qubit], qr[qubit+1])
             qc.barrier()
                         
-        # Add final measurements
-        if measure: 
-            qc.measure(qr,cr)
+    # Add final measurements
+    if measure: 
+        for i in range(n_mes):
+            qc.z(qr[i])
+        for i in range(n_mes):
+            qc.measure(qr[i], cr[i])
         
     return qc
 
@@ -170,3 +169,4 @@ class exp_val_layer(torch.nn.Module):
     
                 
         return ((out + 1.) / 2.)
+        
