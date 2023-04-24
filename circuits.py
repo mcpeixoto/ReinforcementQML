@@ -51,10 +51,10 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
         qc = qk.QuantumCircuit(qr)
     
     # Define a vector containg Inputs as parameters (*not* to be optimized)
-    inputs = qk.circuit.ParameterVector('x', num_qubits)
+    inputs = qk.circuit.ParameterVector('1_Input', num_qubits)
 
     if not reuploading:
-        input_weights = qk.circuit.ParameterVector('w', num_qubits)
+        input_weights = qk.circuit.ParameterVector('input_weights', num_qubits)
                 
         # Encode classical input data
         qc.compose(encode_data(inputs, num_qubits = num_qubits, weights=input_weights), inplace = True)
@@ -77,7 +77,7 @@ def VQC(num_qubits = None, reuploading = False, reps = 2, measure = False):
         
         # Iterate for a number of repetitions
         for rep in range(reps):
-            input_weights = qk.circuit.ParameterVector(f'w{rep}', num_qubits)
+            input_weights = qk.circuit.ParameterVector(f'input_weights_{rep}', num_qubits)
 
             # Encode classical input data
             qc.compose(encode_data(inputs, num_qubits = num_qubits, weights=input_weights), inplace = True)

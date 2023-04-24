@@ -41,10 +41,13 @@ model_dir = "models"
 if not exists(model_dir):
     mkdir(model_dir)
 
-# TODO: tensorboard
+
+class continuousEncoding(gym.ObservationWrapper):
+    def observation(self, observation):
+        return np.arctan(observation)
 
 class CardPole():
-    def __init__(self, reuploading=True, reps=6, batch_size=64, lr=0.01, n_episodes=1000, n_exploratory_episodes=10, 
+    def __init__(self, reuploading=True, reps=5, batch_size=64, lr=0.01, out_lr=0.1, n_episodes=1000, n_exploratory_episodes=10, 
                  max_steps=200, discount_rate = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42):
         self.bookkeeping = {} # Save all parameters in a dictionary
         for key, value in locals().items():
@@ -79,20 +82,24 @@ class CardPole():
 
         if not self.is_classical:
             # Generate the Parametrized Quantum Circuit (note the flags reuploading and reps)
-            self.qc = VQC(num_qubits=self.n_qubits, reuploading=reuploading, reps=reps)
+            self.qc = VQC(num_qubits=self.n_qubits, reuploading=reuploading, reps=reps, measure=True)
 
             # Fetch the parameters from the circuit and divide them in Inputs (X) and Trainable Parameters (params)
             # The first four parameters are for the inputs
-            X = list(self.qc.parameters)[: self.n_qubits]
+            X = list(self.qc.parameters)[:self.n_qubits]
+            assert np.array([str(x) for x in list(self.qc.parameters)[:self.n_qubits]]).all()
 
             # The remaining ones are the trainable weights of the quantum neural network
             params = list(self.qc.parameters)[self.n_qubits:]
 
             # Select a quantum backend to run the simulation of the quantum circuit
             # https://qiskit.org/documentation/stable/0.19/stubs/qiskit.providers.aer.StatevectorSimulator.html
-            qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'))
+            #qi = QuantumInstance(qk.Aer.get_backend('statevector_simulator'))
             #                      backend_options={'max_parallel_threads': 0, "max_parallel_experiments": 0})
             #                                       #"statevector_parallel_threshold": 0})
+
+            # Now with quasm
+            qi = QuantumInstance(qk.Aer.get_backend('qasm_simulator'), shots=1000)
 
             # Create a Quantum Neural Network object starting from the quantum circuit defined above
             self.qnn = CircuitQNN(self.qc, input_params=X, weight_params=params, quantum_instance=qi)
@@ -120,7 +127,8 @@ class CardPole():
 
         # Initialize variables
         self.replay_memory = deque(maxlen=10000)
-        self.optimizer = Adam(self.model.parameters(), lr=lr)
+        self.optimizer = Adam(self.model.parameters()[0], lr=lr)
+        self.output_optimizer = Adam(self.model.parameters()[1], lr=out_lr)
 
         self.rewards = []
         self.win_thr = 5    # If we win self.win_thr times in a row, we stop the training
@@ -212,7 +220,9 @@ class CardPole():
         
         # Evaluate the gradients and update the parameters 
         self.optimizer.zero_grad()
+        self.output_optimizer.zero_grad()
         loss.backward()
+        self.output_optimizer.step()
         self.optimizer.step()
 
         # Log the loss
