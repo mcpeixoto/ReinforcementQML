@@ -32,8 +32,8 @@ BATCH_SIZE = 16
 EPSILON_START = 1.0
 EPSILON_MIN = 0.01
 EPSILON_DECAY = 0.99
-TARGET_UPDATE_FREQ = 10
-TARGET_TRAIN_FREQ = 2
+TARGET_UPDATE_FREQ = 10 # Episodes between target network training
+TARGET_TRAIN_FREQ = 10 # Steps between target network training
 EPISODES = 200
 
 
@@ -148,13 +148,14 @@ def train(agent, env, replay_buffer, target_network, optimizer, episodes):
         episode_reward = 0
         done = False
 
+        step = 0
         while not done:
             action = agent.act(state, epsilon)
             next_state, reward, done, _, _ = env.step(action)
             replay_buffer.push(state, action, reward, next_state, done)
 
-            #if len(replay_buffer) > BATCH_SIZE:
-            #    agent.learn(replay_buffer, target_network, optimizer)
+            if len(replay_buffer) > BATCH_SIZE and step % TARGET_TRAIN_FREQ == 0:
+                agent.learn(replay_buffer, target_network, optimizer)
 
             state = next_state
             episode_reward += reward
@@ -162,10 +163,10 @@ def train(agent, env, replay_buffer, target_network, optimizer, episodes):
         epsilon = max(epsilon * EPSILON_DECAY, EPSILON_MIN)
         rewards.append(episode_reward)
 
-        if  episode % TARGET_TRAIN_FREQ == 0 and  len(replay_buffer) > BATCH_SIZE:
-            print("Training target network...", end="\r")
-            agent.learn(replay_buffer, target_network, optimizer)
-            print("Target network trained!", end="\r")
+        #if  episode % TARGET_TRAIN_FREQ == 0 and  len(replay_buffer) > BATCH_SIZE:
+        #    print("Training target network...", end="\r")
+        #    agent.learn(replay_buffer, target_network, optimizer)
+        #    print("Target network trained!", end="\r")
 
         if episode % TARGET_UPDATE_FREQ == 0:
             target_network.load_state_dict(agent.state_dict())
@@ -195,8 +196,13 @@ def main():
     target_network.eval()
 
     replay_buffer = ReplayBuffer(BUFFER_SIZE)
-    optimizer = optim.Adam(agent.parameters(), lr=LEARNING_RATE)
+    #optimizer = optim.Adam(agent.parameters(), lr=LEARNING_RATE)
 
+    # Two optimizers will be used with diferent LR, one for the output weights and one for the circuit parameters
+    optimizer = optim.Adam([{'params': agent.output_weights, 'lr': 10*LEARNING_RATE},
+                            {'params': agent.θ, 'lr': LEARNING_RATE},
+                            {'params': agent.input_weights, 'lr': LEARNING_RATE}], lr=LEARNING_RATE)
+    
     rewards = train(agent, env, replay_buffer, target_network, optimizer, EPISODES)
     plot_rewards(rewards)
 
