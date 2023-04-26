@@ -33,7 +33,7 @@ EPSILON_START = 1.0
 EPSILON_MIN = 0.01
 EPSILON_DECAY = 0.99
 TARGET_UPDATE_FREQ = 10 # Episodes between target network training
-TARGET_TRAIN_FREQ = 10 # Steps between target network training
+TARGET_TRAIN_FREQ = 25 # Steps between target network training
 EPISODES = 200
 
 
@@ -154,20 +154,17 @@ def train(agent, env, replay_buffer, target_network, optimizer, episodes):
             next_state, reward, done, _, _ = env.step(action)
             replay_buffer.push(state, action, reward, next_state, done)
 
+            # Train agent
             if len(replay_buffer) > BATCH_SIZE and step % TARGET_TRAIN_FREQ == 0:
                 agent.learn(replay_buffer, target_network, optimizer)
 
             state = next_state
             episode_reward += reward
         
-        epsilon = max(epsilon * EPSILON_DECAY, EPSILON_MIN)
+        epsilon = max(epsilon * EPSILON_DECAY, EPSILON_MIN) # Decay epsilon
         rewards.append(episode_reward)
 
-        #if  episode % TARGET_TRAIN_FREQ == 0 and  len(replay_buffer) > BATCH_SIZE:
-        #    print("Training target network...", end="\r")
-        #    agent.learn(replay_buffer, target_network, optimizer)
-        #    print("Target network trained!", end="\r")
-
+        # Update target network
         if episode % TARGET_UPDATE_FREQ == 0:
             target_network.load_state_dict(agent.state_dict())
 
@@ -196,12 +193,11 @@ def main():
     target_network.eval()
 
     replay_buffer = ReplayBuffer(BUFFER_SIZE)
-    #optimizer = optim.Adam(agent.parameters(), lr=LEARNING_RATE)
 
-    # Two optimizers will be used with diferent LR, one for the output weights and one for the circuit parameters
-    optimizer = optim.Adam([{'params': agent.output_weights, 'lr': 10*LEARNING_RATE},
+    # Two optimizers will be used with diferent LR, one for the input/output weights and one for the circuit parameters
+    optimizer = optim.Adam([{'params': agent.output_weights, 'lr': 100*LEARNING_RATE},
                             {'params': agent.θ, 'lr': LEARNING_RATE},
-                            {'params': agent.input_weights, 'lr': LEARNING_RATE}], lr=LEARNING_RATE)
+                            {'params': agent.input_weights, 'lr': 100*LEARNING_RATE}])
     
     rewards = train(agent, env, replay_buffer, target_network, optimizer, EPISODES)
     plot_rewards(rewards)
@@ -222,16 +218,17 @@ QNetwork.act = epsilon_greedy_action
 
 # Learn from experience
 def learn_from_experience(self, replay_buffer, target_network, optimizer):
+    print("Learning...          ", end="\r")
     states, actions, rewards, next_states, dones = replay_buffer.sample(BATCH_SIZE)
 
-    states = torch.tensor(states, dtype=torch.float32)
+    states = torch.tensor(np.array(states), dtype=torch.float32)
     actions = torch.tensor(actions, dtype=torch.int64).unsqueeze(1)
     rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1)
-    next_states = torch.tensor(next_states, dtype=torch.float32)
+    next_states = torch.tensor(np.array(next_states), dtype=torch.float32)
     dones = torch.tensor(dones, dtype=torch.bool).unsqueeze(1)
 
     current_q_values = self(states).gather(1, actions)
-    next_q_values = target_network(next_states).max(1, keepdim=True)[0].detach()
+    next_q_values = target_network(next_states).max(1, keepdim=True)[0].detach() # Ignore target network gradients
     target_q_values = rewards + (GAMMA * next_q_values * (~dones))
 
     loss = nn.MSELoss()(current_q_values, target_q_values)
@@ -239,6 +236,7 @@ def learn_from_experience(self, replay_buffer, target_network, optimizer):
     optimizer.zero_grad()
     loss.backward() # Bottleneck
     optimizer.step()
+    print("Learning complete!       ", end="\r")
 
 QNetwork.learn = learn_from_experience
 
