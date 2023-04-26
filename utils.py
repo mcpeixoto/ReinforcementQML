@@ -3,7 +3,7 @@
 # Overwritting default MultiProcess Class #
 ###########################################
 
-import multiprocessing
+import multiprocessing.pool
 
 class NoDaemonProcess(multiprocessing.Process):
     @property
@@ -14,6 +14,7 @@ class NoDaemonProcess(multiprocessing.Process):
     def daemon(self, value):
         pass
 
+
 class NoDaemonContext(type(multiprocessing.get_context())):
     Process = NoDaemonProcess
 
@@ -21,5 +22,5 @@ class NoDaemonContext(type(multiprocessing.get_context())):
 # because the latter is only a wrapper function, not a proper class.
 class NestablePool(multiprocessing.pool.Pool):
     def __init__(self, *args, **kwargs):
-        kwargs["context"] = NoDaemonContext()
+        kwargs['context'] = NoDaemonContext()
         super(NestablePool, self).__init__(*args, **kwargs)
