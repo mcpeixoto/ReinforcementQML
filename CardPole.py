@@ -66,10 +66,8 @@ class CardPole():
 
         # Init variables
         self.replay_memory = deque(maxlen=buffer_size)
-
-        self.win_cnt = 0    # Counter for the number of consecutive wins
-        self.win_score = 200    # Score to reach to win the game
         self.done = False   # Flag to indicate if the training is done
+        self.win = False    # Flag to indicate if the game is won
 
         # Create an unique name for this run
         string = ''
@@ -193,6 +191,9 @@ class CardPole():
                 if interaction['done']:
                     break
 
+            # Average reward
+            avg_reward = np.mean(self.episode_reward_history[-self.win_thr:])
+
             # Decay epsilon
             self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
             self.writer.add_scalar('Epsilon', self.epsilon, episode)
@@ -202,21 +203,18 @@ class CardPole():
             self.writer.add_scalar('Episode reward', episode_reward, episode)
 
             # Best model
-            if episode_reward > self.best_score:
+            if episode_reward >= self.best_score:
                 self.best_score = episode_reward
                 self.writer.add_scalar('Best score', self.best_score, episode)
                 self.save()
 
-            # Winning thr
-            if step+1 >= self.win_score:
-                self.win_cnt += 1
-            else:
-                self.win_cnt = 0
+            
 
-            if self.win_cnt >= self.win_thr:
+            if avg_reward == self.max_steps:
                 self.done = True
+                self.win = True
                 self.save() # Save the model
-                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Win!!!")
+                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
                 break
 
 
@@ -235,6 +233,7 @@ class CardPole():
         # Save the remaining parameters to bookkeeping
         self.bookkeeping['rewards'] = self.episode_reward_history
         self.bookkeeping['done'] = self.done
+        self.bookkeeping['win'] = self.win
         self.bookkeeping['episode'] = self.episode
         
         # Save the model
