@@ -58,12 +58,12 @@ class ReUploadingPQC(tf.keras.layers.Layer):
         by the ControlledPQC.
     """
 
-    def __init__(self, qubits, n_layers, observables, activation="linear", name="re-uploading_PQC", cx = False, ladder = False):
+    def __init__(self, qubits, n_layers, observables, activation="linear", name="re-uploading_PQC", cx = False, ladder = False, reuploading=True):
         super(ReUploadingPQC, self).__init__(name=name)
         self.n_layers = n_layers
         self.n_qubits = len(qubits)
 
-        circuit, theta_symbols, input_symbols = generate_circuit(qubits, n_layers, cx = cx, ladder = ladder)
+        circuit, theta_symbols, input_symbols = generate_circuit(qubits, n_layers, cx = cx, ladder = ladder, reuploading=reuploading)
 
         theta_init = tf.random_uniform_initializer(minval=0.0, maxval=np.pi)
         self.theta = tf.Variable(
@@ -128,7 +128,7 @@ def entangling_layer(qubits, cx = False, ladder = False):
         
     return cz_ops
 
-def generate_circuit(qubits, n_layers, cx = False, ladder = False):
+def generate_circuit(qubits, n_layers, cx = False, ladder = False, reuploading=True):
     """Prepares a data re-uploading circuit on `qubits` with `n_layers` layers."""
     # Number of qubits
     n_qubits = len(qubits)
@@ -138,8 +138,13 @@ def generate_circuit(qubits, n_layers, cx = False, ladder = False):
     params = np.asarray(params).reshape((n_layers + 1, n_qubits, 3))
 
     # Sympy symbols for encoding angles
-    inputs = sympy.symbols(f'x(0:{n_layers})'+f'_(0:{n_qubits})')
-    inputs = np.asarray(inputs).reshape((n_layers, n_qubits))
+    if reuploading:
+        inputs = sympy.symbols(f'x(0:{n_layers})'+f'_(0:{n_qubits})')
+        inputs = np.asarray(inputs).reshape((n_layers, n_qubits))
+    else:
+        # BUG: This is giving some Runtime warnins, but it works
+        inputs = sympy.symbols(f'x(0:{1})'+f'_(0:{n_qubits})')
+        inputs = np.asarray(inputs).reshape((1, n_qubits))
 
     # Define circuit
     circuit = cirq.Circuit()
@@ -147,19 +152,22 @@ def generate_circuit(qubits, n_layers, cx = False, ladder = False):
         # Variational layer
         circuit += cirq.Circuit(one_qubit_rotation(q, params[l, i]) for i, q in enumerate(qubits))
         circuit += entangling_layer(qubits, cx = cx, ladder = ladder)
-        # Encoding layer
-        circuit += cirq.Circuit(cirq.rx(inputs[l, i])(q) for i, q in enumerate(qubits))
+
+        if reuploading or l== 0:
+            # BUG: This is giving some Runtime warnins, but it works
+            # Encoding layer
+            circuit += cirq.Circuit(cirq.rx(inputs[l, i])(q) for i, q in enumerate(qubits))
 
     # Last varitional layer
     circuit += cirq.Circuit(one_qubit_rotation(q, params[n_layers, i]) for i,q in enumerate(qubits))
 
     return circuit, list(params.flat), list(inputs.flat)
 
-def generate_model_Qlearning(qubits, n_layers, cx, ladder, n_actions, observables, target):
+def generate_model_Qlearning(qubits, n_layers, cx, ladder, reuploading, n_actions, observables, target):
     """Generates a Keras model for a data re-uploading PQC Q-function approximator."""
 
     input_tensor = tf.keras.Input(shape=(len(qubits), ), dtype=tf.dtypes.float32, name='input')
-    re_uploading_pqc = ReUploadingPQC(qubits, n_layers, observables, activation='tanh', cx = cx, ladder = ladder)([input_tensor])
+    re_uploading_pqc = ReUploadingPQC(qubits, n_layers, observables, activation='tanh', cx = cx, ladder = ladder, reuploading=reuploading)([input_tensor])
     process = tf.keras.Sequential([Rescaling(len(observables))], name=target*"Target"+"Q-values")
     Q_values = process(re_uploading_pqc)
     model = tf.keras.Model(inputs=[input_tensor], outputs=Q_values)

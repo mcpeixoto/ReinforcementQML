@@ -60,8 +60,8 @@ class CardPole():
         observables = [ops[0]*ops[1], ops[2]*ops[3]] # Z_0*Z_1 for action 0 and Z_2*Z_3 for action 1
 
         # Defining model
-        self.model_online = generate_model_Qlearning(qubits, n_layers, cx, ladder, self.output_dim, observables, False)
-        self.model_target = generate_model_Qlearning(qubits, n_layers, cx, ladder, self.output_dim, observables, True)
+        self.model_online = generate_model_Qlearning(qubits, n_layers, cx, ladder, reuploading, self.output_dim, observables, False)
+        self.model_target = generate_model_Qlearning(qubits, n_layers, cx, ladder, reuploading, self.output_dim, observables, True)
 
         self.model_target.set_weights(self.model_online.get_weights())
 
@@ -248,7 +248,7 @@ class CardPole():
 
 
 def worker(number):
-    algorithm = CardPole(seed=number, reuploading=True, cx=True, ladder=True, n_layers=5)
+    algorithm = CardPole(seed=number, reuploading=False, cx=True, ladder=True, n_layers=5)
     algorithm.train()
 
 
