@@ -222,7 +222,7 @@ def GridSearch(params, fixed=None):
         book = dict(zip(keys, combination))
         if fixed is not None:
             book = join_dicts(book, fixed)
-        book["name"] = str(i)
+        #book["name"] = str(i)
         buff.append(book)
 
     return buff
