@@ -40,9 +40,9 @@ class CardPole():
                     self.bookkeeping[key] = value
 
         if show_game:
-            self.env = gym.make('CartPole-v1', render_mode='human')
+            self.env = gym.make('CartPole-v0', render_mode='human')
         else:
-            self.env = gym.make('CartPole-v1')
+            self.env = gym.make('CartPole-v0')
 
         # Set random seed
         self.env.seed(seed)
@@ -74,8 +74,9 @@ class CardPole():
         # Create an unique name for this run
         string = ''
         for key, item in self.bookkeeping.items():
-            string += str(item)
-        self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_seed_' + str(seed)
+            if key not in ["show_game", "draw_circuit", "seed"]:
+                string += str(item)
+        self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_' + str(seed)
 
          # Saving dir
         self.save_dir = join(model_dir, self.name)
