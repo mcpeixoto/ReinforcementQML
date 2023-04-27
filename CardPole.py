@@ -30,7 +30,7 @@ class CardPole():
     def __init__(self, reuploading=True, n_layers=5, batch_size=16, lr=0.001,  n_episodes=1000, win_episodes_thr = 10,
                  max_steps=200, gamma = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42, 
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
-                 target_update_freq=5, online_train_freq=1 ):
+                 target_update_freq=5, online_train_freq=1, win_thr = 10 ):
 
         self.bookkeeping = {}
         for key,value in locals().items():
@@ -163,7 +163,7 @@ class CardPole():
             state = self.env.reset()
             self.episode = episode
             
-            while True:
+            for step in range(self.max_steps):
                 # Interact with env
                 interaction = self.interact_env(state)
                 
@@ -207,26 +207,35 @@ class CardPole():
                 self.writer.add_scalar('Best score', self.best_score, episode)
                 self.save()
 
-            if (episode+1)%10 == 0:
-                avg_rewards = np.mean(self.episode_reward_history[-10:])
-                print("Episode {}/{}, average last 10 rewards {}".format(
-                    episode+1, self.n_episodes, avg_rewards))
-                if avg_rewards >= 500.0:
-                    break
+            # Winning thr
+            if step+1 >= self.win_score:
+                self.win_cnt += 1
+            else:
+                self.win_cnt = 0
+
+            if self.win_cnt >= self.win_thr:
+                self.done = True
+                self.save() # Save the model
+                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score} | Win!!!")
+                break
+
 
 
         # Plot the learning history of the agent:
         plt.figure(figsize=(10,5))
         plt.plot(self.episode_reward_history)
+        plt.grid()
         plt.xlabel('Epsiode')
         plt.ylabel('Collected rewards')
-        plt.show()
+        plt.savefig(join(self.save_dir, 'rewards.png'))
+        plt.close()
 
 
     def save(self, save_model=True):
         # Save the remaining parameters to bookkeeping
         self.bookkeeping['rewards'] = self.episode_reward_history
         self.bookkeeping['done'] = self.done
+        self.bookkeeping['episode'] = self.episode
         
         # Save the model
         if save_model:
@@ -245,7 +254,6 @@ def worker(number):
 
 
 import sys
-
 first_arg = sys.argv[1]
 
 worker(int(first_arg))
