@@ -10,6 +10,7 @@ from os.path import join, exists
 import pickle
 from torch.utils.tensorboard import SummaryWriter
 import hashlib
+import sys
 tf.get_logger().setLevel('ERROR')
 
 
@@ -251,8 +252,6 @@ def worker(number):
     algorithm.train()
 
 
-
-import sys
-first_arg = sys.argv[1]
-
-worker(int(first_arg))
+if __name__ == "__main__":
+    first_arg = sys.argv[1]
+    worker(int(first_arg))
