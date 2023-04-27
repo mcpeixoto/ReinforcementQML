@@ -58,12 +58,12 @@ class ReUploadingPQC(tf.keras.layers.Layer):
         by the ControlledPQC.
     """
 
-    def __init__(self, qubits, n_layers, observables, activation="linear", name="re-uploading_PQC"):
+    def __init__(self, qubits, n_layers, observables, activation="linear", name="re-uploading_PQC", cx = False, ladder = False):
         super(ReUploadingPQC, self).__init__(name=name)
         self.n_layers = n_layers
         self.n_qubits = len(qubits)
 
-        circuit, theta_symbols, input_symbols = generate_circuit(qubits, n_layers)
+        circuit, theta_symbols, input_symbols = generate_circuit(qubits, n_layers, cx = cx, ladder = ladder)
 
         theta_init = tf.random_uniform_initializer(minval=0.0, maxval=np.pi)
         self.theta = tf.Variable(
@@ -107,15 +107,28 @@ def one_qubit_rotation(qubit, symbols):
             cirq.ry(symbols[1])(qubit),
             cirq.rz(symbols[2])(qubit)]
 
-def entangling_layer(qubits):
+def entangling_layer(qubits, cx = False, ladder = False):
     """
     Returns a layer of CZ entangling gates on `qubits` (arranged in a circular topology).
     """
     cz_ops = [cirq.CZ(q0, q1) for q0, q1 in zip(qubits, qubits[1:])]
     cz_ops += ([cirq.CZ(qubits[0], qubits[-1])] if len(qubits) != 2 else [])
+    
+    if cx:
+        ''' Returns a layer of CX entangling gates on `qubits` (arranged in a circular topology).'''
+        cz_ops = [cirq.CNOT(q0, q1) for q0, q1 in zip(qubits, qubits[1:])]
+        cz_ops += ([cirq.CNOT(qubits[0], qubits[-1])] if len(qubits) != 2 else [])
+
+        if ladder:
+            ''' Returns a layer of CX entangling gates on `qubits` (arranged in a ladder topology).'''
+            cz_ops = [cirq.CNOT(qubits[i], q1) for i in range(len(qubits)-1) for q1 in qubits[i+1:]]
+    if not cx and ladder:
+        ''' Returns a layer of CZ entangling gates on `qubits` (arranged in a ladder topology).'''
+        cz_ops = [cirq.CZ(qubits[i], q1) for i in range(len(qubits)-1) for q1 in qubits[i+1:]]
+        
     return cz_ops
 
-def generate_circuit(qubits, n_layers):
+def generate_circuit(qubits, n_layers, cx = False, ladder = False):
     """Prepares a data re-uploading circuit on `qubits` with `n_layers` layers."""
     # Number of qubits
     n_qubits = len(qubits)
@@ -133,7 +146,7 @@ def generate_circuit(qubits, n_layers):
     for l in range(n_layers):
         # Variational layer
         circuit += cirq.Circuit(one_qubit_rotation(q, params[l, i]) for i, q in enumerate(qubits))
-        circuit += entangling_layer(qubits)
+        circuit += entangling_layer(qubits, cx = cx, ladder = ladder)
         # Encoding layer
         circuit += cirq.Circuit(cirq.rx(inputs[l, i])(q) for i, q in enumerate(qubits))
 
@@ -142,11 +155,11 @@ def generate_circuit(qubits, n_layers):
 
     return circuit, list(params.flat), list(inputs.flat)
 
-def generate_model_Qlearning(qubits, n_layers, n_actions, observables, target):
+def generate_model_Qlearning(qubits, n_layers, cx, ladder, n_actions, observables, target):
     """Generates a Keras model for a data re-uploading PQC Q-function approximator."""
 
     input_tensor = tf.keras.Input(shape=(len(qubits), ), dtype=tf.dtypes.float32, name='input')
-    re_uploading_pqc = ReUploadingPQC(qubits, n_layers, observables, activation='tanh')([input_tensor])
+    re_uploading_pqc = ReUploadingPQC(qubits, n_layers, observables, activation='tanh', cx = cx, ladder = ladder)([input_tensor])
     process = tf.keras.Sequential([Rescaling(len(observables))], name=target*"Target"+"Q-values")
     Q_values = process(re_uploading_pqc)
     model = tf.keras.Model(inputs=[input_tensor], outputs=Q_values)

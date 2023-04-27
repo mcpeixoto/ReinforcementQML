@@ -27,16 +27,16 @@ if not exists(model_dir):
 
 # TODO: is_classical
 class CardPole():
-    def __init__(self, reuploading=True, n_layers=5, batch_size=16, lr=0.001,  n_episodes=1000, win_episodes_thr = 10,
-                 max_steps=200, gamma = 0.99, show_game=False, is_classical=False, draw_circuit=False, seed = 42, 
+    def __init__(self, reuploading, cx, ladder, n_layers, batch_size=16, lr=0.001,  n_episodes=1000, win_episodes_thr = 10,
+                 max_steps=200, gamma = 0.99, show_game=False, is_classical=False, seed = 42, 
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
-                 target_update_freq=5, online_train_freq=1, win_thr = 10 ):
+                 target_update_freq=5, online_train_freq=1, win_thr = 10):
 
         self.bookkeeping = {}
         for key,value in locals().items():
             if key != 'self':
                 setattr(self, key, value)
-                if key not in ["show_game", "draw_circuit"]:
+                if key not in ["show_game"]:
                     self.bookkeeping[key] = value
 
         if show_game:
@@ -59,8 +59,8 @@ class CardPole():
         observables = [ops[0]*ops[1], ops[2]*ops[3]] # Z_0*Z_1 for action 0 and Z_2*Z_3 for action 1
 
         # Defining model
-        self.model_online = generate_model_Qlearning(qubits, n_layers, self.output_dim, observables, False)
-        self.model_target = generate_model_Qlearning(qubits, n_layers, self.output_dim, observables, True)
+        self.model_online = generate_model_Qlearning(qubits, n_layers, cx, ladder, self.output_dim, observables, False)
+        self.model_target = generate_model_Qlearning(qubits, n_layers, cx, ladder, self.output_dim, observables, True)
 
         self.model_target.set_weights(self.model_online.get_weights())
 
@@ -74,7 +74,7 @@ class CardPole():
         # Create an unique name for this run
         string = ''
         for key, item in self.bookkeeping.items():
-            if key not in ["show_game", "draw_circuit", "seed"]:
+            if key not in ["show_game", "seed"]:
                 string += str(item)
         self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_' + str(seed)
 
@@ -248,7 +248,7 @@ class CardPole():
 
 
 def worker(number):
-    algorithm = CardPole(seed=number, draw_circuit=True)
+    algorithm = CardPole(seed=number, reuploading=True, cx=True, ladder=True, n_layers=5)
     algorithm.train()
 
 
