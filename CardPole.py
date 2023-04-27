@@ -224,7 +224,7 @@ class CardPole():
                 self.done = True
                 self.win = True
                 self.save() # Save the model
-                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
+                # print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
                 break
 
         # Plot the learning history of the agent:

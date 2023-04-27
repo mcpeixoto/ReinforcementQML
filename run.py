@@ -36,18 +36,14 @@ if __name__ == '__main__':
 
     print(f"[INFO] Starting grid search | TOTAL RUNS: {len(gridsearch)} | TOTAL PROCESSES: {n_processes}")
 
-    pool = NestablePool(processes=n_processes)
-    
-    jobs = []
-    for hp in gridsearch:
-        jobs.append(pool.apply_async(worker, (hp,)))
+    with NestablePool(processes=n_processes) as pool:
+        # Use tqdm
+        for _ in tqdm(pool.imap_unordered(worker, gridsearch), total=len(gridsearch), desc="[INFO] Grid Search Progress", dynamic_ncols=True):
+            pass
 
-    pool.close()
 
-    for job in tqdm(jobs, total=len(jobs), desc="[INFO] Grid search progress"):
-        job.get()
 
-    pool.join()
+
 
     print("[INFO] Grid search finished")
 
