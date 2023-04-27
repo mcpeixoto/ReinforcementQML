@@ -165,3 +165,56 @@ def generate_model_Qlearning(qubits, n_layers, cx, ladder, n_actions, observable
     model = tf.keras.Model(inputs=[input_tensor], outputs=Q_values)
 
     return model
+
+###########################################
+#        Other Relevant Functions         #
+###########################################
+
+import itertools
+
+def join_dicts(dict1, dict2):
+    """
+    Join two dictionaries together
+    """
+    for key, value in dict2.items():
+        if key in dict1:
+            dict1[key].append(value)
+        else:
+            dict1[key] = value
+    return dict1
+
+def GridSearch(params, fixed=None):
+    """
+    Given a dictionary of hyperparameters, return a
+    dictionary iterator of hyperparameters.
+    Example:
+    params = {'n_layers': [1, 2, 3], 'n_qubits': [2, 3, 4], 'n_features': [2, 3, 4]}
+    params_iterator = GridSearch(params)
+    for x in params_iterator:
+        print(x)
+    """
+
+    # Set all values to list
+    for key, value in params.items():
+        if not isinstance(value, list):
+            params[key] = [value]
+
+    # Get all keys
+    keys = list(params.keys())
+
+    # Get all values
+    values = list(params.values())
+
+    # Get all combinations
+    combinations = list(itertools.product(*values))
+
+    # Create dictionary iterator
+    buff = []
+    for i, combination in enumerate(combinations):
+        book = dict(zip(keys, combination))
+        if fixed is not None:
+            book = join_dicts(book, fixed)
+        book["name"] = str(i)
+        buff.append(book)
+
+    return buff
