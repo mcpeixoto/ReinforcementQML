@@ -11,7 +11,12 @@ import pickle
 from torch.utils.tensorboard import SummaryWriter
 import hashlib
 import sys
+import argparse
 tf.get_logger().setLevel('ERROR')
+
+# Ignore tf warnings
+import warnings
+warnings.filterwarnings("ignore")
 
 
 from utils import NestablePool, Rescaling, ReUploadingPQC, one_qubit_rotation, entangling_layer, generate_circuit, generate_model_Qlearning
@@ -28,8 +33,8 @@ if not exists(model_dir):
 
 # TODO: is_classical
 class CardPole():
-    def __init__(self, reuploading, cx, ladder, n_layers, batch_size=16, lr=0.001,  n_episodes=1000, win_episodes_thr = 10,
-                 max_steps=200, gamma = 0.99, show_game=False, is_classical=False, seed = 42, 
+    def __init__(self, reuploading, cx, ladder, n_layers, seed = 42, batch_size=16, lr=0.001,  n_episodes=1000, win_episodes_thr = 10,
+                 max_steps=200, gamma = 0.99, show_game=False, is_classical=False,  
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
                  target_update_freq=5, online_train_freq=1, win_thr = 10):
 
@@ -72,12 +77,18 @@ class CardPole():
 
         # Create an unique name for this run
         string = ''
-        for key, item in self.bookkeeping.items():
-            if key not in ["show_game", "seed"]:
-                string += str(item)
+        # For these variables  reuploading, cx, ladder, n_layers, seed 
+        for var in ['reuploading', 'cx', 'ladder', 'n_layers']:
+            string += str(var) + '_' + str(getattr(self, var)) + '_'
+        
         self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_' + str(seed)
 
-         # Saving dir
+        #print("STRING:", string)
+        #print("SEED:", seed)
+        #print("NAME:", self.name)
+        
+
+        # Saving dir
         self.save_dir = join(model_dir, self.name)
         if not exists(self.save_dir):
             mkdir(self.save_dir)
@@ -209,16 +220,12 @@ class CardPole():
                 self.writer.add_scalar('Best score', self.best_score, episode)
                 self.save()
 
-            
-
             if avg_reward == self.max_steps:
                 self.done = True
                 self.win = True
                 self.save() # Save the model
                 print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
                 break
-
-
 
         # Plot the learning history of the agent:
         plt.figure(figsize=(10,5))
@@ -247,11 +254,25 @@ class CardPole():
 
 
 
-def worker(number):
-    algorithm = CardPole(seed=number, reuploading=False, cx=True, ladder=True, n_layers=5)
-    algorithm.train()
-
 
 if __name__ == "__main__":
-    first_arg = sys.argv[1]
-    worker(int(first_arg))
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int)
+    parser.add_argument('--reuploading', type=int)
+    parser.add_argument('--cx', type=int)
+    parser.add_argument('--ladder', type=int)
+    parser.add_argument('--n_layers', type=int)
+    args = parser.parse_args()
+
+    #print("Args received:")
+    #print(args)
+
+    # Convert int to bool
+    args.reuploading = bool(args.reuploading)
+    args.cx = bool(args.cx)
+    args.ladder = bool(args.ladder)
+
+    # Call CardPole
+    algorithm = CardPole(seed=args.seed, reuploading=args.reuploading, cx=args.cx, ladder=args.ladder, n_layers=args.n_layers)
+    algorithm.train() 
