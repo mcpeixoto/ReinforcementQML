@@ -216,7 +216,7 @@ class CardPole():
             if self.win_cnt >= self.win_thr:
                 self.done = True
                 self.save() # Save the model
-                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {best_score} | Win!!!")
+                print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Win!!!")
                 break
 
 
