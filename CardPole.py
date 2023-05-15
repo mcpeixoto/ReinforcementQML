@@ -33,10 +33,10 @@ if not exists(model_dir):
 
 # TODO: is_classical
 class CardPole():
-    def __init__(self, reuploading, cx, ladder, n_layers, seed = 42, batch_size=16, lr=0.001,  n_episodes=1000, win_episodes_thr = 10,
-                 max_steps=200, gamma = 0.99, show_game=False, is_classical=False,  
+    def __init__(self, reuploading, cx, ladder, n_layers, seed = 42, batch_size=16, lr=0.001,  n_episodes=5000,
+                 max_steps=500, gamma = 0.99, show_game=False, is_classical=False,  
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
-                 target_update_freq=5, online_train_freq=1, win_thr = 10):
+                 target_update_freq=5, online_train_freq=1, win_thr = 100):
 
         self.bookkeeping = {}
         for key,value in locals().items():
@@ -46,9 +46,9 @@ class CardPole():
                     self.bookkeeping[key] = value
 
         if show_game:
-            self.env = gym.make('CartPole-v0', render_mode='human')
+            self.env = gym.make('CartPole-v1', render_mode='human')
         else:
-            self.env = gym.make('CartPole-v0')
+            self.env = gym.make('CartPole-v1')
 
         # Set random seed
         self.env.seed(seed)
@@ -226,6 +226,9 @@ class CardPole():
                 self.save() # Save the model
                 # print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
                 break
+
+        self.done = True
+        self.save(save_model=False)
 
         # Plot the learning history of the agent:
         plt.figure(figsize=(10,5))
