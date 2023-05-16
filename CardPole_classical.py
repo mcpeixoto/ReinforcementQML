@@ -1,5 +1,5 @@
 import tensorflow as tf
-import gym, cirq
+import gym
 import numpy as np
 from functools import reduce
 from collections import deque
@@ -19,23 +19,15 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-from utils import NestablePool, Rescaling, ReUploadingPQC, one_qubit_rotation, entangling_layer, generate_circuit, generate_model_Qlearning
-
-
-
 # Defining directories
-model_dir = "models"
+model_dir = "models_classic"
 if not exists(model_dir):
     mkdir(model_dir)
 
 
-
-
-# TODO: is_classical
-# Defining CardPole class
 class CardPole():
     def __init__(self, reuploading, cx, ladder, n_layers, seed = 42, batch_size=16, lr=0.001,  n_episodes=5000,
-                 max_steps=500, gamma = 0.99, show_game=False, is_classical=False,  
+                 max_steps=500, gamma = 0.99, show_game=False, is_classical=True,  
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
                  target_update_freq=5, online_train_freq=1, win_thr = 100):
         '''
@@ -61,7 +53,7 @@ class CardPole():
             win_thr (int): Threshold of consecutive wins to consider the game solved
         '''
         
-        # Bookkeeping - dictionary with all the variables
+
         self.bookkeeping = {}
         for key,value in locals().items():
             if key != 'self':
@@ -83,16 +75,15 @@ class CardPole():
         self.input_dim = 4#int(self.env.observation_space.shape[0])
         self.output_dim = 2#int(self.env.action_space.n)
 
-        # Defining qubits and observables
-        qubits = cirq.GridQubit.rect(1, self.input_dim)
-        ops = [cirq.Z(q) for q in qubits]
-        observables = [ops[0]*ops[1], ops[2]*ops[3]] # Z_0*Z_1 for action 0 and Z_2*Z_3 for action 1
 
         # Defining model
-        self.model_online = generate_model_Qlearning(qubits, n_layers, cx, ladder, reuploading, self.output_dim, observables, False)
-        self.model_target = generate_model_Qlearning(qubits, n_layers, cx, ladder, reuploading, self.output_dim, observables, True)
-
+        self.model_online = tf.keras.models.Sequential([tf.keras.layers.Dense(2, input_shape=[4,])])
+        self.model_target = tf.keras.models.Sequential([tf.keras.layers.Dense(2, input_shape=[4,])])
         self.model_target.set_weights(self.model_online.get_weights())
+
+        # Defining optimizer
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+
 
         # Init variables
         self.replay_memory = deque(maxlen=buffer_size)
@@ -107,9 +98,7 @@ class CardPole():
         
         self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_' + str(seed)
 
-        #print("STRING:", string)
-        #print("SEED:", seed)
-        #print("NAME:", self.name)
+
         
 
         # Saving dir
@@ -170,20 +159,13 @@ class CardPole():
 
         # Backpropagation
         grads = tape.gradient(loss, self.model_online.trainable_variables)
-        for optimizer, w in zip([self.optimizer_in, self.optimizer_var, self.optimizer_out], [self.w_in, self.w_var, self.w_out]):
-            optimizer.apply_gradients([(grads[w], self.model_online.trainable_variables[w])])
-
+        self.optimizer.apply_gradients(zip(grads, self.model_online.trainable_variables))
 
         return loss
 
     def train(self):
 
-        self.optimizer_in = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
-        self.optimizer_var = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
-        self.optimizer_out = tf.keras.optimizers.Adam(learning_rate=0.1, amsgrad=True)
-
-        # Assign the model parameters to each optimizer
-        self.w_in, self.w_var, self.w_out = 1, 0, 2
+        self.optimizer= tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
 
 
         self.epsilon = self.epsilon_start
@@ -280,7 +262,7 @@ class CardPole():
             pickle.dump(self.bookkeeping, f)
 
 
-
+# python CardPole_classical.py --seed 1 --reuploading 1 --cx 1 --ladder 1 --n_layers 1
 
 if __name__ == "__main__":
     # Parse arguments
