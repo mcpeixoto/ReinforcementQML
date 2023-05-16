@@ -73,7 +73,7 @@ class ReUploadingPQC(tf.keras.layers.Layer):
         )
 
         lmbd_init = tf.ones(shape=(self.n_qubits * self.n_layers,))
-        self.lmbd = tf.Variable(
+        self.lmbd = tf.Variable( # Input scaling factors.
             initial_value=lmbd_init, dtype="float32", trainable=True, name="lambdas"
         )
 
@@ -91,7 +91,7 @@ class ReUploadingPQC(tf.keras.layers.Layer):
         tiled_up_circuits = tf.repeat(self.empty_circuit, repeats=batch_dim)
         tiled_up_thetas = tf.tile(self.theta, multiples=[batch_dim, 1])
         tiled_up_inputs = tf.tile(inputs[0], multiples=[1, self.n_layers])
-        scaled_inputs = tf.einsum("i,ji->ji", self.lmbd, tiled_up_inputs)
+        scaled_inputs = tf.einsum("i,ji->ji", self.lmbd, tiled_up_inputs) # Input scaling
         squashed_inputs = tf.keras.layers.Activation(self.activation)(scaled_inputs)
 
         joined_vars = tf.concat([tiled_up_thetas, squashed_inputs], axis=1)
@@ -169,7 +169,7 @@ def generate_model_Qlearning(qubits, n_layers, cx, ladder, reuploading, n_action
 
     input_tensor = tf.keras.Input(shape=(len(qubits), ), dtype=tf.dtypes.float32, name='input')
     re_uploading_pqc = ReUploadingPQC(qubits, n_layers, observables, activation='tanh', cx = cx, ladder = ladder, reuploading=reuploading)([input_tensor])
-    process = tf.keras.Sequential([Rescaling(len(observables))], name=target*"Target"+"Q-values")
+    process = tf.keras.Sequential([Rescaling(len(observables))], name=target*"Target"+"Q-values") # Output scaling
     Q_values = process(re_uploading_pqc)
     model = tf.keras.Model(inputs=[input_tensor], outputs=Q_values)
 
