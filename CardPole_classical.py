@@ -48,12 +48,12 @@ class CardPole():
             epsilon_decay (float): Decay rate of epsilon (used in the epsilon-greedy policy)
             epsilon_min (float): Minimum value of epsilon (used in the epsilon-greedy policy)
             buffer_size (int): Size of the replay buffer
-            target_update_freq (int): Frequency of updating the target network - episodic
-            online_train_freq (int): Frequency of training the online network - episodic
+            target_update_freq (int): Frequency of updating the target network - steps
+            online_train_freq (int): Frequency of training the online network - steps
             win_thr (int): Threshold of consecutive wins to consider the game solved
         '''
         
-
+        # Saving all the variables
         self.bookkeeping = {}
         for key,value in locals().items():
             if key != 'self':
@@ -71,17 +71,18 @@ class CardPole():
         np.random.seed(seed)
         tf.random.set_seed(seed)
 
+        # Defining input and output dimensions
+        self.input_dim = 4 #int(self.env.observation_space.shape[0])
+        self.output_dim = 2 #int(self.env.action_space.n)
 
-        self.input_dim = 4#int(self.env.observation_space.shape[0])
-        self.output_dim = 2#int(self.env.action_space.n)
 
-
-        # Defining model
+        # Defining model - classical
         self.model_online = tf.keras.models.Sequential([tf.keras.layers.Dense(2, input_shape=[4,])])
         self.model_target = tf.keras.models.Sequential([tf.keras.layers.Dense(2, input_shape=[4,])])
         self.model_target.set_weights(self.model_online.get_weights())
 
         # Defining optimizer
+        # Adam optimizer with learning rate 0.0001
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
 
@@ -116,14 +117,25 @@ class CardPole():
             self.writer.add_text(key, str(value))
 
 
-
+    # Define the iteractive environment
     def interact_env(self, state):
+        '''
+        Args:
+            state (list): State of the environment
+        Returns:
+            interaction (dict): Dictionary containing the interaction with the environment
+        '''
         # Preprocess state
         state_array = np.array(state) 
         state = tf.convert_to_tensor([state_array])
 
         # Sample action
         coin = np.random.random()
+        
+        # Epsilon-greedy policy - to balance exploration and exploitation
+        # if coin > self.epsilon
+        # then choose action from policy network - exploit
+        # else choose random action - explore
         if coin > self.epsilon:
             q_vals = self.model_online([state])
             action = int(tf.argmax(q_vals[0]).numpy())
@@ -138,7 +150,21 @@ class CardPole():
         return interaction
 
     @tf.function
+    # Define the Q-learning update
     def Q_learning_update(self, states, actions, rewards, next_states, done):
+        '''
+        Args:
+            states (list): List of states
+            actions (list): List of actions
+            rewards (list): List of rewards
+            next_states (list): List of next states
+            done (list): List of done flags
+        
+        Returns:
+            loss (float): Loss value
+        '''
+        
+        # Preprocess states, actions, rewards, next_states, done
         states = tf.convert_to_tensor(states)
         actions = tf.convert_to_tensor(actions)
         rewards = tf.convert_to_tensor(rewards)
@@ -164,21 +190,25 @@ class CardPole():
         return loss
 
     def train(self):
+        # Function that trains the model
 
         self.optimizer= tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
 
-
+        # Init variables
         self.epsilon = self.epsilon_start
         self.best_score = -np.inf
 
 
         self.episode_reward_history = []
         self.global_step = 0
+        
+        # Training loop
         for episode in range(self.n_episodes):
             episode_reward = 0
             state = self.env.reset()
             self.episode = episode
             
+            # Loop for each step of episode
             for step in range(self.max_steps):
                 # Interact with env
                 interaction = self.interact_env(state)

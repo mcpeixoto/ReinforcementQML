@@ -129,11 +129,22 @@ class CardPole():
 
 
     def interact_env(self, state):
+        '''
+        Args:
+            state (list): State of the environment
+            
+        Returns:
+            interaction (dict): Dictionary with the interaction information
+        '''
         # Preprocess state
         state_array = np.array(state) 
         state = tf.convert_to_tensor([state_array])
 
         # Sample action
+        # Epsilon-greedy policy - to balance exploration and exploitation
+        # if coin > self.epsilon
+        # then choose action from policy network - exploit
+        # else choose random action - explore
         coin = np.random.random()
         if coin > self.epsilon:
             q_vals = self.model_online([state])
@@ -150,6 +161,19 @@ class CardPole():
 
     @tf.function
     def Q_learning_update(self, states, actions, rewards, next_states, done):
+        '''
+        Args:
+            states (list): List of states
+            actions (list): List of actions
+            rewards (list): List of rewards
+            next_states (list): List of next states
+            done (list): List of done flags
+        
+        Returns:
+            loss (float): Loss of the Q-learning update
+        '''
+        
+        # Process inputs
         states = tf.convert_to_tensor(states)
         actions = tf.convert_to_tensor(actions)
         rewards = tf.convert_to_tensor(rewards)
@@ -177,7 +201,9 @@ class CardPole():
         return loss
 
     def train(self):
-
+        
+        # define optimizers
+        # different learning rates for different parameters
         self.optimizer_in = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
         self.optimizer_var = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
         self.optimizer_out = tf.keras.optimizers.Adam(learning_rate=0.1, amsgrad=True)
@@ -185,18 +211,21 @@ class CardPole():
         # Assign the model parameters to each optimizer
         self.w_in, self.w_var, self.w_out = 1, 0, 2
 
-
+        # Init variables
         self.epsilon = self.epsilon_start
         self.best_score = -np.inf
 
 
         self.episode_reward_history = []
         self.global_step = 0
+        
+        # Training loop
         for episode in range(self.n_episodes):
             episode_reward = 0
             state = self.env.reset()
             self.episode = episode
             
+            # Epsilon decay
             for step in range(self.max_steps):
                 # Interact with env
                 interaction = self.interact_env(state)
