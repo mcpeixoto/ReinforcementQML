@@ -46,7 +46,6 @@ class Rescaling(tf.keras.layers.Layer):
             trainable=True, name="obs-weights")
 
     def call(self, inputs):
-        # BUG: o que isto faz? multiplica?
         return tf.math.multiply((inputs+1)/2, tf.repeat(self.w,repeats=tf.shape(inputs)[0],axis=0))
 
 class ReUploadingPQC(tf.keras.layers.Layer):
