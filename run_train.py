@@ -13,6 +13,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
+from config import searchgrid
+
+
 def worker(HP):
     #algorithm = CardPole(seed=seed, reuploading=reuploading, cx=cx, ladder=ladder, n_layers=n_layers)
     
@@ -23,13 +26,6 @@ def worker(HP):
     return
 
 if __name__ == '__main__':
-    searchgrid = {
-        "reuploading" : [1, 0],
-        "cx" : [1, 0],
-        "ladder" : [1, 0],
-        "n_layers" : list(range(1, 9)),
-        "seed": list(range(1, 11)),
-    }
 
     gridsearch = GridSearch(searchgrid)
     n_processes = 50
