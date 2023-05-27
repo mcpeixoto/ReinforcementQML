@@ -299,7 +299,7 @@ class CardPole():
         """
         Benchmarks the model 
         """
-
+        self.epsilon = self.epsilon_start
         self.rewards_over_episodes = []
 
         for episode in range(n_games):
@@ -315,7 +315,6 @@ class CardPole():
                 
                 state = interaction['next_state']
                 self.curr_epsisode_rewards.append(interaction['reward'])
-                self.global_step += 1
                
                 # Check if the episode is finished
                 if interaction['done']:
@@ -356,7 +355,7 @@ class CardPole():
         self.model_online.load_weights(join(self.save_dir, 'model.h5'))
         self.model_target.load_weights(join(self.save_dir, 'model.h5'))
 
-        return self.bookkeeping['done'] == 'True'
+        return self.bookkeeping['done'] == True
 
 
 
