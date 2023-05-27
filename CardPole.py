@@ -363,6 +363,7 @@ class CardPole():
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
+    parser.add_argument('--type', type=str)
     parser.add_argument('--seed', type=int)
     parser.add_argument('--reuploading', type=int)
     parser.add_argument('--cx', type=int)
@@ -380,4 +381,15 @@ if __name__ == "__main__":
 
     # Call CardPole
     algorithm = CardPole(seed=args.seed, reuploading=args.reuploading, cx=args.cx, ladder=args.ladder, n_layers=args.n_layers)
-    algorithm.train() 
+
+
+
+    # If type is 'train' then train the model, else load the model and benchmark it
+    if args.type == 'train':
+        algorithm.train()
+    elif args.type == 'benchmark':
+        algorithm.benchmark()
+    else:
+        raise ValueError(f'Invalid type argument {args.type}. Valid arguments are "train" and "benchmark".')
+
+     

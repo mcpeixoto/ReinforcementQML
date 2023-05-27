@@ -18,7 +18,7 @@ def worker(HP):
     
     # Call python cardpole.py with arguments
     #print("Command:" f"python CardPole.py --seed {HP['seed']} --reuploading {HP['reuploading']} --cx {HP['cx']} --ladder {HP['ladder']} --n_layers {HP['n_layers']}")
-    os.system(f"python CardPole.py --seed {HP['seed']} --reuploading {HP['reuploading']} --cx {HP['cx']} --ladder {HP['ladder']} --n_layers {HP['n_layers']}")
+    os.system(f"python CardPole.py --type train --seed {HP['seed']} --reuploading {HP['reuploading']} --cx {HP['cx']} --ladder {HP['ladder']} --n_layers {HP['n_layers']}")
     #print("-----"*5)
     return
 
