@@ -117,16 +117,18 @@ class CardPole():
         if not exists(self.save_dir):
             mkdir(self.save_dir)
         else:
-            print("WARNING: model already exists!", seed) # TODO: Add methods to resume training, load model, etc.
-            raise Exception
+            # If exists, check if done
+            if self.load():
+                pass
+            else:
+                print("WARNING: Imcomplete model train detected!", self.save_dir) # TODO: Add methods to resume training, load model, etc.
+                raise Exception
 
         # Tensorboard
         self.writer = SummaryWriter(log_dir=self.save_dir)
         # Add model parameters to tensorboard
         for key, value in self.bookkeeping.items():
             self.writer.add_text(key, str(value))
-
-
 
     def interact_env(self, state):
         '''
@@ -271,17 +273,17 @@ class CardPole():
             if episode_reward >= self.best_score:
                 self.best_score = episode_reward
                 self.writer.add_scalar('Best score', self.best_score, episode)
-                self.save()
+                self.save() # Save the model
 
+            # Won the game
             if avg_reward == self.max_steps:
                 self.done = True
                 self.win = True
                 self.save() # Save the model
-                # print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
                 break
 
         self.done = True
-        self.save(save_model=False)
+        self.save(save_model=False) # Does not win the game so the model is the previous best one (already saved)
 
         # Plot the learning history of the agent:
         plt.figure(figsize=(10,5))
@@ -308,6 +310,16 @@ class CardPole():
         with open(join(self.save_dir, 'params.pkl'), 'wb') as f:
             pickle.dump(self.bookkeeping, f)
 
+    def load(self):
+        # Load bookkeeping
+        with open(join(self.save_dir, 'params.pkl'), 'rb') as f:
+            self.bookkeeping = pickle.load(f)
+
+        # Load the model
+        self.model_online.load_weights(join(self.save_dir, 'model.h5'))
+        self.model_target.load_weights(join(self.save_dir, 'model.h5'))
+
+        return self.bookkeeping['done'] == 'True'
 
 
 
