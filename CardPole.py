@@ -119,9 +119,10 @@ class CardPole():
         else:
             # If exists, check if done
             if self.load():
+                print("[INFO] Trained model loaded successfully!")
                 pass
             else:
-                print("WARNING: Imcomplete model train detected!", self.save_dir) # TODO: Add methods to resume training, load model, etc.
+                print("[Exception] Imcomplete model training detected! Aborting.", self.save_dir) # TODO: Add methods to resume training, load model, etc.
                 raise Exception
 
         # Tensorboard
@@ -293,6 +294,42 @@ class CardPole():
         plt.ylabel('Collected rewards')
         plt.savefig(join(self.save_dir, 'rewards.png'))
         plt.close()
+
+    def benchmark(self, n_games=100, render=False):
+        """
+        Benchmarks the model 
+        """
+
+        self.rewards_over_episodes = []
+
+        for episode in range(n_games):
+            self.curr_epsisode_rewards = []
+
+            state = self.env.reset()
+            self.episode = episode
+            
+            # Epsilon decay
+            for step in range(self.max_steps):
+                # Interact with env
+                interaction = self.interact_env(state)
+                
+                state = interaction['next_state']
+                self.curr_epsisode_rewards.append(interaction['reward'])
+                self.global_step += 1
+               
+                # Check if the episode is finished
+                if interaction['done']:
+                    break
+
+            # Decay epsilon
+            self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
+            
+            # Record reward
+            self.rewards_over_episodes.append(self.curr_epsisode_rewards)
+
+        # Save the benchmark results
+        with open(join(self.save_dir, 'benchmark.pkl'), 'wb') as f:
+            pickle.dump(self.rewards_over_episodes, f)
 
 
     def save(self, save_model=True):
