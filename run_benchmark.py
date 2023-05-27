@@ -22,7 +22,7 @@ def worker(HP):
 if __name__ == '__main__':
 
     gridsearch = GridSearch(searchgrid)
-    n_processes = 50
+    n_processes = 80
 
     print(f"[INFO] Starting grid search | TOTAL RUNS: {len(gridsearch)} | TOTAL PROCESSES: {n_processes}")
 

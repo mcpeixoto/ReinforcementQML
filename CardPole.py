@@ -299,7 +299,7 @@ class CardPole():
         """
         Benchmarks the model 
         """
-        self.epsilon = self.epsilon_start
+        self.epsilon = 0
         self.rewards_over_episodes = []
 
         for episode in range(n_games):
@@ -319,9 +319,6 @@ class CardPole():
                 # Check if the episode is finished
                 if interaction['done']:
                     break
-
-            # Decay epsilon
-            self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
             
             # Record reward
             self.rewards_over_episodes.append(self.curr_epsisode_rewards)
