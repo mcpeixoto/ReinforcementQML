@@ -23,7 +23,7 @@ def worker(seed):
 
 if __name__ == '__main__':
 
-    seeds = list(range(1, 21))
+    seeds = list(range(1, 11))
     n_processes = 50
 
     print(f"[INFO] Starting grid search | TOTAL RUNS: {len(seeds)} | TOTAL PROCESSES: {n_processes}")
