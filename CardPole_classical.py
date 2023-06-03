@@ -26,7 +26,7 @@ if not exists(model_dir):
 
 
 class CardPole():
-    def __init__(self, reuploading, cx, ladder, n_layers, seed = 42, batch_size=16, lr=0.001,  n_episodes=5000,
+    def __init__(self, seed = 42, batch_size=16, lr=0.001,  n_episodes=5000,
                  max_steps=500, gamma = 0.99, show_game=False, is_classical=True,  
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
                  target_update_freq=5, online_train_freq=1, win_thr = 100):
@@ -94,8 +94,8 @@ class CardPole():
         # Create an unique name for this run
         string = ''
         # For these variables  reuploading, cx, ladder, n_layers, seed 
-        for var in ['reuploading', 'cx', 'ladder', 'n_layers']:
-            string += str(var) + '_' + str(getattr(self, var)) + '_'
+        #for var in ['reuploading', 'cx', 'ladder', 'n_layers']:
+        #    string += str(var) + '_' + str(getattr(self, var)) + '_'
         
         self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_' + str(seed)
 
@@ -298,20 +298,18 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int)
-    parser.add_argument('--reuploading', type=int)
-    parser.add_argument('--cx', type=int)
-    parser.add_argument('--ladder', type=int)
-    parser.add_argument('--n_layers', type=int)
+    parser.add_argument('--type', type=str)
     args = parser.parse_args()
 
-    #print("Args received:")
-    #print(args)
-
-    # Convert int to bool
-    args.reuploading = bool(args.reuploading)
-    args.cx = bool(args.cx)
-    args.ladder = bool(args.ladder)
-
     # Call CardPole
-    algorithm = CardPole(seed=args.seed, reuploading=args.reuploading, cx=args.cx, ladder=args.ladder, n_layers=args.n_layers)
-    algorithm.train() 
+    algorithm = CardPole(seed=args.seed)
+    
+     # If type is 'train' then train the model, else load the model and benchmark it
+    if args.type == 'train':
+        algorithm.train()
+    elif args.type == 'benchmark':
+        algorithm.benchmark()
+    else:
+        raise ValueError(f'Invalid type argument {args.type}. Valid arguments are "train" and "benchmark".')
+
+     
