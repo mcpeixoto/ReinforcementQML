@@ -107,8 +107,13 @@ class CardPole():
         if not exists(self.save_dir):
             mkdir(self.save_dir)
         else:
-            print("WARNING: model already exists!", seed) # TODO: Add methods to resume training, load model, etc.
-            raise Exception
+            # If exists, check if done
+            if self.load():
+                print("[INFO] Trained model loaded successfully!")
+                pass
+            else:
+                print("[Exception] Imcomplete model training detected! Aborting.", self.save_dir) # TODO: Add methods to resume training, load model, etc.
+                raise Exception
 
         # Tensorboard
         self.writer = SummaryWriter(log_dir=self.save_dir)
@@ -275,6 +280,38 @@ class CardPole():
         plt.savefig(join(self.save_dir, 'rewards.png'))
         plt.close()
 
+    def benchmark(self, n_games=100, render=False):
+        """
+        Benchmarks the model 
+        """
+        self.epsilon = 0
+        self.rewards_over_episodes = []
+
+        for episode in range(n_games):
+            self.curr_epsisode_rewards = []
+
+            state = self.env.reset()
+            self.episode = episode
+            
+            # Epsilon decay
+            for step in range(self.max_steps):
+                # Interact with env
+                interaction = self.interact_env(state)
+                
+                state = interaction['next_state']
+                self.curr_epsisode_rewards.append(interaction['reward'])
+               
+                # Check if the episode is finished
+                if interaction['done']:
+                    break
+            
+            # Record reward
+            self.rewards_over_episodes.append(self.curr_epsisode_rewards)
+
+        # Save the benchmark results
+        with open(join(self.save_dir, 'benchmark.pkl'), 'wb') as f:
+            pickle.dump(self.rewards_over_episodes, f)
+
 
     def save(self, save_model=True):
         # Save the remaining parameters to bookkeeping
@@ -290,6 +327,16 @@ class CardPole():
         # Save the parameters
         with open(join(self.save_dir, 'params.pkl'), 'wb') as f:
             pickle.dump(self.bookkeeping, f)
+
+    def load(self):
+        # Load bookkeeping
+        with open(join(self.save_dir, 'params.pkl'), 'rb') as f:
+            self.bookkeeping = pickle.load(f)
+
+        # Load the model
+        self.model_online.load_weights(join(self.save_dir, 'model.h5'))
+
+        return self.bookkeeping['done'] == True
 
 
 # python CardPole_classical.py --seed 1 --reuploading 1 --cx 1 --ladder 1 --n_layers 1
