@@ -17,17 +17,13 @@ from config import searchgrid
 
 
 def worker(seed):
-    #algorithm = CardPole(seed=seed, reuploading=reuploading, cx=cx, ladder=ladder, n_layers=n_layers)
-    
-    # Call python cardpole.py with arguments
-    #print("Command:" f"python CardPole.py --seed {HP['seed']} --reuploading {HP['reuploading']} --cx {HP['cx']} --ladder {HP['ladder']} --n_layers {HP['n_layers']}")
     os.system(f"python CardPole_classical.py --type train --seed {seed}")
-    #print("-----"*5)
+    os.system(f"python CardPole_classical.py --type benchmark --seed {seed}")
     return
 
 if __name__ == '__main__':
 
-    seeds = list(range(1, 11))
+    seeds = list(range(1, 21))
     n_processes = 50
 
     print(f"[INFO] Starting grid search | TOTAL RUNS: {len(seeds)} | TOTAL PROCESSES: {n_processes}")
