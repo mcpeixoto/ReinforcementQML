@@ -26,7 +26,7 @@ if not exists(model_dir):
 
 
 class CardPole():
-    def __init__(self, seed = 42, batch_size=16, lr=0.001,  n_episodes=5000,
+    def __init__(self, n_layers, seed = 42, batch_size=16, lr=0.001,  n_episodes=5000,
                  max_steps=500, gamma = 0.99, show_game=False, is_classical=True,  
                  epsilon_start = 1, epsilon_decay=0.99, epsilon_min=0.01, buffer_size=10000,
                  target_update_freq=5, online_train_freq=1, win_thr = 100):
@@ -77,13 +77,18 @@ class CardPole():
 
 
         # Defining model - classical
-        self.model_online = tf.keras.models.Sequential([tf.keras.layers.Dense(2, input_shape=[4,])])
-        self.model_target = tf.keras.models.Sequential([tf.keras.layers.Dense(2, input_shape=[4,])])
+        # Aa neural network 4 input, 2 output, n_layers hidden layer
+        architecture = [tf.keras.layers.Dense(10, activation='relu', input_dim=self.input_dim)]
+        for _ in range(n_layers):
+            architecture.append(tf.keras.layers.Dense(10, activation='relu'))
+        architecture.append(tf.keras.layers.Dense(self.output_dim, activation='linear'))
+
+        self.model_online = tf.keras.models.Sequential(architecture)
+        self.model_target = tf.keras.models.Sequential(architecture)
         self.model_target.set_weights(self.model_online.get_weights())
 
         # Defining optimizer
-        # Adam optimizer with learning rate 0.0001
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+        self.optimizer= tf.keras.optimizers.Adam(learning_rate=self.lr, amsgrad=True)
 
 
         # Init variables
@@ -94,13 +99,10 @@ class CardPole():
         # Create an unique name for this run
         string = ''
         # For these variables  reuploading, cx, ladder, n_layers, seed 
-        #for var in ['reuploading', 'cx', 'ladder', 'n_layers']:
-        #    string += str(var) + '_' + str(getattr(self, var)) + '_'
+        for var in ['n_layers']:
+            string += str(var) + '_' + str(getattr(self, var)) + '_'
         
         self.name = str(hashlib.md5(string.encode()).hexdigest()) + '_' + str(seed)
-
-
-        
 
         # Saving dir
         self.save_dir = join(model_dir, self.name)
@@ -197,8 +199,6 @@ class CardPole():
     def train(self):
         # Function that trains the model
 
-        self.optimizer= tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
-
         # Init variables
         self.epsilon = self.epsilon_start
         self.best_score = -np.inf
@@ -213,7 +213,7 @@ class CardPole():
             state = self.env.reset()
             self.episode = episode
             
-            # Loop for each step of episode
+            # Epsilon decay
             for step in range(self.max_steps):
                 # Interact with env
                 interaction = self.interact_env(state)
@@ -259,17 +259,17 @@ class CardPole():
             if episode_reward >= self.best_score:
                 self.best_score = episode_reward
                 self.writer.add_scalar('Best score', self.best_score, episode)
-                self.save()
+                self.save() # Save the model
 
+            # Won the game
             if avg_reward == self.max_steps:
                 self.done = True
                 self.win = True
                 self.save() # Save the model
-                # print(f"\r[INFO] Episode: {episode} | Eps: {self.epsilon:.3f} | Steps (Curr Reward): {step +1} | Best score: {self.best_score} | Avg Reward (last {self.win_thr} episodes): {avg_reward} | Win!!!", end="")
                 break
 
         self.done = True
-        self.save(save_model=False)
+        self.save(save_model=False) # Does not win the game so the model is the previous best one (already saved)
 
         # Plot the learning history of the agent:
         plt.figure(figsize=(10,5))
@@ -346,10 +346,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int)
     parser.add_argument('--type', type=str)
+    parser.add_argument('--n_layers', type=int)
     args = parser.parse_args()
 
     # Call CardPole
-    algorithm = CardPole(seed=args.seed)
+    algorithm = CardPole( n_layers=args.n_layers, seed=args.seed)
     
      # If type is 'train' then train the model, else load the model and benchmark it
     if args.type == 'train':
