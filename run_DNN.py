@@ -16,15 +16,16 @@ warnings.filterwarnings("ignore")
 from config import searchgrid
 
 
+
 def worker(HP):
-    os.system(f"python CardPole_classical.py --type train --seed {HP['seed']} --n_layers {HP['n_layers']}")
-    os.system(f"python CardPole_classical.py --type benchmark --seed {HP['seed']} --n_layers {HP['n_layers']}")
+    os.system(f"python tralha.py --seed {HP['seed']} --n_layers {HP['n_layers']}")
+    #os.system(f"python CardPole_classical.py --type benchmark --seed {HP['seed']} --n_layers {HP['n_layers']}")
     return
 
 if __name__ == '__main__':
 
     searchgrid = {
-        "n_layers" : list(range(1, 9)),
+        "n_layers" : list(range(1, 11)),
         "seed": list(range(1, 11)),
     }
     gridsearch = GridSearch(searchgrid)

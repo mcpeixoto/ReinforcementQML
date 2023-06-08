@@ -27,7 +27,7 @@ SOFTWARE.
 ## ENPM 808F: Final Project
 ## Balancing a pole on a cart using Deep Reinforcement Learning
 ########
-
+import argparse
 import gym  ## Import the OpenAI gym
 import keras  ## Import the Keras
 import tensorflow as tf
@@ -43,7 +43,7 @@ from keras.layers import Dense  ## Dense Layer from Keras
 from keras.models import load_model  ## For saving and loading the Keras model
 
 from collections import deque  ## Deque for storing samples in Replay Memory 
-
+import sys
 ACTIONS_DIM = 2  ## Output Dimension=No. of possible actions (2)
 OBSERVATIONS_DIM = 4  ## Input Dimension= No of Elements in State Tuple (4)
 MAX_ITERATIONS = 500  ## Max Time Steps Per Game (Limited to 500 by Environment)
@@ -59,6 +59,12 @@ RANDOM_ACTION_DECAY = 0.99  ## The factor by which Random Action Probability Dec
 INITIAL_RANDOM_ACTION = 1  ## Initial Random Action Factor
 Samples=[]  ## A list to store Individual Game Scores
 Means=[]  ## A list to store Mean Score over Last 20 Games
+
+# Ignore tf warnings
+import warnings
+warnings.filterwarnings("ignore")
+from os import mkdir
+from os.path import join, exists
 
 
 ####
@@ -97,13 +103,14 @@ def predict(model, observation):  ## Function to Predict Q-Values from Model
     np_obs = np.reshape(observation, [-1, OBSERVATIONS_DIM])  ## Reshape the State
     return model.predict(np_obs)  ## Query the Model for possible actions and corresponding Q-Values
 
-def get_model():  ## Build the Deep Q-Network
+def get_model(n_layers):  ## Build the Deep Q-Network
     model = Sequential()  ## Type of Model
     ####
     ## Input layer of Dimension 4 and a Hidden Layer of 24 nodes. Activation 'relu'
     ####
     model.add(Dense(10, input_shape=(OBSERVATIONS_DIM, ), activation='relu'))
-    model.add(Dense(10, activation='relu'))  ## Add second Hidden Layer of 24 nodes. Activation 'relu'
+    for i in range(n_layers):  ## Add Hidden Layers
+        model.add(Dense(10, activation='relu'))  ## Add second Hidden Layer of 24 nodes. Activation 'relu'
     model.add(Dense(2, activation='linear'))  ## Add output layer of dimension 2. Activation 'linear'
 
     model.compile(  ## Compile the Model
@@ -144,7 +151,13 @@ def update_action(action_model, target_model, sample_transitions):  ## Update th
     ## Update the model using Observations and their corresponding Targets
     train(action_model, batch_observations, batch_targets)
 
-def main():
+def main(n_layers, seed):
+    book={}
+    book['best_score']=-np.inf
+    # Set random seed for reproducibility
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    
     Temp=[]  ## Initialize a list to hold most recent 100 Game Scores
     iteration=0  ## Initialize Time Step Number to Avoid initial No variable Error
     ## Set Random Action Probability to Initial Number(=1)
@@ -152,11 +165,12 @@ def main():
     
     replay = ReplayBuffer(REPLAY_MEMORY_SIZE)  ## Initialize Replay Memory & Specify Maximum Capacity
 
-    action_model = get_model()  ## Initialize action-value model with random weights
+    action_model = get_model(n_layers=n_layers)  ## Initialize action-value model with random weights
 
     env = gym.make('CartPole-v1')  ## Prepare the OpenAI Cartpole-v1 Environment
-
+   
     for episode in range(NUM_EPISODES):  ## For Games 0 to Maximum Games Limit
+        episode_reward = 0  ## Initialize Episode Reward to 0
         ## If mean over the last 100 Games is >495, then Success!!!
         if np.mean(Temp)>495 and iteration>495:
             print('Passed')  ## Print the information that the model is converged
@@ -180,7 +194,9 @@ def main():
                 action = np.argmax(q_values)  ## Select the Best Action using Q-Values received
             ## Take the Selected Action and Observe Next State
             observation, reward, done, info = env.step(action)
-
+            
+            episode_reward += reward  ## Add Reward to Episode Reward
+            
             if done:  ## If Game Over
                 Samples.append(iteration+1)  ## Add Final Score of the Game to the Scores List
                 ## If Number of Games>100, Calculate Mean Over 100 Games to Check Convergence
@@ -192,7 +208,13 @@ def main():
                 print(('Episode:{}, iterations:{}, RAP:{}').format(
                         episode,
                         iteration,random_action_probability))
-
+                average_reward = np.mean(Samples[-100:])  ## Calculate Mean of Most Recent 100 Games
+                std_reward = np.std(Samples[-100:])  ## Calculate Standard Deviation of Most Recent 100 Games
+                # Save information to plot
+                book['best_score'] = best_score
+                book['average_reward'] = average_reward
+                book['std_reward'] = std_reward
+                book['rewards'] = Samples
                 if iteration!=499:
                     reward = -5  ## Give -5 Reward for Taking Wrong Action Leading to Failure
                 if iteration==499:
@@ -211,7 +233,12 @@ def main():
                 sample_transitions = replay.sample(MINIBATCH_SIZE)
                 update_action(action_model, action_model, sample_transitions)
 
-
+            
+            # Best model
+            best_score = book['best_score']
+            if episode_reward >= best_score:
+                best_score = episode_reward
+                
 ####
 ##  Here, the Training Phase Ends. Now We plot the Training Results and Save the Trained Model
 ##  We Also Test the Model for Another 100 Games.
@@ -263,4 +290,22 @@ def main():
         
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int)
+    parser.add_argument('--n_layers', type=int)
+    args = parser.parse_args()
+
+    # Call CardPole
+    #algorithm = CardPole( n_layers=args.n_layers, seed=args.seed)
+     # Saving all the variables
+    bookkeeping = {}
+    bookkeeping['n_layers'] = args.n_layers
+    bookkeeping['seed'] = args.seed
+    book = main(n_layers=args.n_layers, seed=args.seed)
+    bookkeeping['book'] = book
+    
+    # Save the variables
+    import pickle
+    with open(f'books/bookkeeping_{args.n_layers}_{args.n_seed}.pkl', 'wb') as f:
+        pickle.dump(bookkeeping, f)
+        f.close()
