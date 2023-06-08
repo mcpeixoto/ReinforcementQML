@@ -18,8 +18,7 @@ from config import searchgrid
 
 
 def worker(HP):
-    os.system(f"python tralha.py --seed {HP['seed']} --n_layers {HP['n_layers']}")
-    #os.system(f"python CardPole_classical.py --type benchmark --seed {HP['seed']} --n_layers {HP['n_layers']}")
+    os.system(f"python CardPole_DNN.py --seed {HP['seed']} --n_layers {HP['n_layers']}")
     return
 
 if __name__ == '__main__':
