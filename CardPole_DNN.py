@@ -114,6 +114,9 @@ def save(name, model, book, save_model=True):
     with open(join(SAVE_DIR, "params.pkl"), "wb") as f:
         pickle.dump(book, f)
 
+
+
+
 def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000, 
          max_steps = 500, gamma = 0.99, epsilon_start = 1, epsilon_decay = 0.99, 
          epsilon_min = 0.01, buffer_size = 10000, target_update_freq = None, 
@@ -198,6 +201,42 @@ def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000,
                 update_action(action_model, action_model, sample_transitions, gamma)
 
         episode_reward_history.append(episode_reward)  # Add Episode Reward to History
+
+
+    #############
+    # BENCHMARK #
+    #############
+
+    epsilon = 0
+    rewards_over_episodes = []
+
+    for episode in range(n_episodes):
+        curr_epsisode_rewards = []
+
+        state = env.reset()
+        episode = episode
+        
+        # Epsilon decay
+        for step in range(max_steps):
+            # Query the Model and Get Q-Values for possible actions
+            q_values = get_q(action_model, observation)
+            action = np.argmax(q_values)  # Select the Best Action using Q-Values received
+        
+            # Take the Selected Action and Observe Next State
+            observation, reward, done, info = env.step(action)
+            
+            curr_epsisode_rewards.append(reward)
+            
+            # Check if the episode is finished
+            if done:
+                break
+            
+        # Record reward
+        rewards_over_episodes.append(curr_epsisode_rewards)
+
+    # Save the benchmark results
+    with open(join(SAVE_DIR, name, 'benchmark.pkl'), 'wb') as f:
+        pickle.dump(rewards_over_episodes, f)
 
 
 if __name__ == "__main__":
