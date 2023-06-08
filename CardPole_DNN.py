@@ -120,7 +120,8 @@ def save(name, model, book, save_model=True):
 def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000, 
          max_steps = 500, gamma = 0.99, epsilon_start = 1, epsilon_decay = 0.99, 
          epsilon_min = 0.01, buffer_size = 10000, target_update_freq = None, 
-         online_train_freq = None, win_thr = 100, done = False, win = False, episode = 0):
+         online_train_freq = None, win_thr = 100, done = False, win = False, 
+         episode = 0, is_classical=True):
     
     # Add variables for book-keeping
     book = {}
