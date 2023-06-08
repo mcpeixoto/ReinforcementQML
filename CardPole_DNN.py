@@ -128,6 +128,7 @@ def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000,
     for key, value in locals().items():
         if key != "book":
             book[key] = value
+    book['win'] = False
 
     # Set the name of the model
     name = f"layers_{n_layers}_seed_{seed}"
@@ -174,6 +175,12 @@ def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000,
             if episode_reward > best_score:
                 best_score = episode_reward
                 book["best_score"] = best_score
+                save(name, action_model, book, save_model=True)
+
+            # If last win_thr episodes are 499 of reward
+            if len(episode_reward_history) > win_thr and np.mean(episode_reward_history[-win_thr:]) == 499:
+                win = True
+                book["win"] = win
                 save(name, action_model, book, save_model=True)
 
             if done:  # If Game Over
