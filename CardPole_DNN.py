@@ -111,7 +111,7 @@ def save(name, model, book, save_model=True):
         model.save(join(SAVE_DIR, name, "model.h5"), overwrite=True)
 
     # Save the book-keeping variables
-    with open(join(SAVE_DIR, "params.pkl"), "wb") as f:
+    with open(join(SAVE_DIR, name, "params.pkl"), "wb") as f:
         pickle.dump(book, f)
 
 
@@ -145,6 +145,7 @@ def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000,
     best_score = -np.inf
 
     for episode in range(n_episodes):  # For Games 0 to Maximum Games Limit
+        book["episode"] = episode
         episode_reward = 0 
 
         # Reduce the Random Action Probability by Decay Factor
