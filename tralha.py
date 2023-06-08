@@ -205,9 +205,9 @@ def main(n_layers, seed):
                     ## Add Mean of Most Recent 20 Games to a list
                     Means.append(np.mean(Samples[-20:]))
                 ## Print End-Of-Game Information
-                print(('Episode:{}, iterations:{}, RAP:{}').format(
-                        episode,
-                        iteration,random_action_probability))
+                #print(('Episode:{}, iterations:{}, RAP:{}').format(
+                        #episode,
+                        #iteration,random_action_probability))
                 average_reward = np.mean(Samples[-100:])  ## Calculate Mean of Most Recent 100 Games
                 std_reward = np.std(Samples[-100:])  ## Calculate Standard Deviation of Most Recent 100 Games
                 # Save information to plot
