@@ -15,6 +15,7 @@ import sys
 import os
 from os.path import join, exists
 import warnings
+from tqdm import tqdm
 warnings.filterwarnings("ignore")
 
 
@@ -212,7 +213,7 @@ def main(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 5000,
         episode_reward_history.append(episode_reward)  # Add Episode Reward to History
 
 
-def benchmark(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 5000, 
+def benchmark(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 100, 
          max_steps = 500, gamma = 0.99, epsilon_start = 1, epsilon_decay = 0.99, 
          epsilon_min = 0.01, buffer_size = 10000, target_update_freq = None, 
          online_train_freq = None, win_thr = 100, done = False, win = False, 
@@ -231,7 +232,7 @@ def benchmark(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 5000,
     rewards_over_episodes = []
 
     observation = env.reset()
-    for episode in range(n_episodes):
+    for episode in tqdm(range(n_episodes)):
         curr_epsisode_rewards = []
 
         state = env.reset()
