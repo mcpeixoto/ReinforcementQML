@@ -235,29 +235,26 @@ def benchmark(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 100,
     for episode in tqdm(range(n_episodes)):
         curr_epsisode_rewards = []
 
-        state = env.reset()
-        episode = episode
-        
+        observation = env.reset()
 
-        for step in range(max_steps):
-            # Query the Model and Get Q-Values for possible actions
+        for iteration in range(max_steps):
+            old_observation = observation
             q_values = get_q(action_model, observation)
-            action = np.argmax(q_values)  # Select the Best Action using Q-Values received
-        
-            # Take the Selected Action and Observe Next State
+            action = np.argmax(q_values)
             observation, reward, done, info = env.step(action)
-            
-            curr_epsisode_rewards.append(reward)
-            
-            # Check if the episode is finished
+
+            curr_epsisode_rewards.append(1)
+
             if done:
+                env.reset()
                 break
-            
-        # Record reward
+
         rewards_over_episodes.append(curr_epsisode_rewards)
 
+
+
     # Save the benchmark results
-    with open(join(SAVE_DIR, name, 'benchmark.pkl'), 'wb') as f:
+    with open(join(SAVE_DIR, name, 'benchmark_new.pkl'), 'wb') as f:
         pickle.dump(rewards_over_episodes, f)
 
 
