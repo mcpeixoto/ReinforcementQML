@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 # Hyper-Parameters
 ACTION_DIM = 2
 OBSERVATIONS_DIM = 4
-SAVE_DIR = 'models_DNN'
+SAVE_DIR = 'models_DNN_fast'
 if os.path.exists(SAVE_DIR) is False:
     os.makedirs(SAVE_DIR)
 
@@ -117,7 +117,7 @@ def save(name, model, book, save_model=True):
 
 
 
-def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000, 
+def main(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 5000, 
          max_steps = 500, gamma = 0.99, epsilon_start = 1, epsilon_decay = 0.99, 
          epsilon_min = 0.01, buffer_size = 10000, target_update_freq = None, 
          online_train_freq = None, win_thr = 100, done = False, win = False, 
@@ -212,20 +212,32 @@ def main(n_layers, seed, batch_size = 64, lr = 0.001, n_episodes = 5000,
         episode_reward_history.append(episode_reward)  # Add Episode Reward to History
 
 
+def benchmark(n_layers, seed, batch_size = 16, lr = 0.001, n_episodes = 5000, 
+         max_steps = 500, gamma = 0.99, epsilon_start = 1, epsilon_decay = 0.99, 
+         epsilon_min = 0.01, buffer_size = 10000, target_update_freq = None, 
+         online_train_freq = None, win_thr = 100, done = False, win = False, 
+         episode = 0, is_classical=True):
+    
+    name = f"layers_{n_layers}_seed_{seed}"
+    env = gym.make("CartPole-v1") 
     #############
     # BENCHMARK #
     #############
 
+    # Load best model
+    action_model = tf.keras.models.load_model(join(SAVE_DIR, name, "model.h5"))
+
     epsilon = 0
     rewards_over_episodes = []
 
+    observation = env.reset()
     for episode in range(n_episodes):
         curr_epsisode_rewards = []
 
         state = env.reset()
         episode = episode
         
-        # Epsilon decay
+
         for step in range(max_steps):
             # Query the Model and Get Q-Values for possible actions
             q_values = get_q(action_model, observation)
@@ -252,6 +264,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int)
     parser.add_argument("--n_layers", type=int)
+    parser.add_argument('--type', type=str)
     args = parser.parse_args()
 
-    main(n_layers=args.n_layers, seed=args.seed)
+    if args.type == "benchmark":
+        benchmark(n_layers=args.n_layers, seed=args.seed)
+    elif args.type == "train":
+        main(type=args.type, n_layers=args.n_layers, seed=args.seed)
+    else:
+        raise ValueError(f"Unknown type {args.type}")
