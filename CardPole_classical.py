@@ -78,10 +78,11 @@ class CardPole():
 
         # Defining model - classical
         # Aa neural network 4 input, 2 output, n_layers hidden layer
-        architecture = [tf.keras.layers.Dense(10, activation='relu', input_dim=self.input_dim)]
+        n_hidden = 10
+        architecture = [tf.keras.layers.Dense(n_hidden, activation="relu", input_dim=self.input_dim)]
         for _ in range(n_layers):
-            architecture.append(tf.keras.layers.Dense(10, activation='relu'))
-        architecture.append(tf.keras.layers.Dense(self.output_dim, activation='linear'))
+            architecture.append(tf.keras.layers.Dense(n_hidden, activation='relu'))
+        architecture.append(tf.keras.layers.Dense(self.output_dim, activation='relu'))
 
         self.model_online = tf.keras.models.Sequential(architecture)
         self.model_target = tf.keras.models.Sequential(architecture)
@@ -89,7 +90,6 @@ class CardPole():
 
         # Defining optimizer
         self.optimizer= tf.keras.optimizers.Adam(learning_rate=self.lr, amsgrad=True)
-
 
         # Init variables
         self.replay_memory = deque(maxlen=buffer_size)
@@ -345,19 +345,24 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int)
-    parser.add_argument('--type', type=str)
+    # parser.add_argument('--type', type=str)
     parser.add_argument('--n_layers', type=int)
     args = parser.parse_args()
 
     # Call CardPole
-    algorithm = CardPole( n_layers=args.n_layers, seed=args.seed)
+    algorithm = CardPole( n_layers=int(args.n_layers), seed=args.seed)
     
-     # If type is 'train' then train the model, else load the model and benchmark it
-    if args.type == 'train':
+    
+        algorithm.train()
         algorithm.train()
     elif args.type == 'benchmark':
-        algorithm.benchmark()
+    algorithm.train()
+    elif args.type == 'benchmark':
+        algorithm.benchmark()        algorithm.benchmark()
     else:
+        raise ValueError(f'Invalid type argument {args.type}. Valid arguments are "train" and "benchmark".')
+
+         algorithm.benchmark()    else:
         raise ValueError(f'Invalid type argument {args.type}. Valid arguments are "train" and "benchmark".')
 
      
