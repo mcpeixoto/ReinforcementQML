@@ -66,6 +66,8 @@ class ReUploadingPQC(tf.keras.layers.Layer):
         circuit, theta_symbols, input_symbols = generate_circuit(qubits, n_layers, cx = cx, ladder = ladder, reuploading=reuploading)
 
         theta_init = tf.random_uniform_initializer(minval=0.0, maxval=np.pi)
+        # Use normal distribution for the lambdas.
+        lmbd_init = tf.random_normal_initializer(mean=0.0, stddev=1.0) # TODO
         self.theta = tf.Variable(
             initial_value=theta_init(shape=(1, len(theta_symbols)), dtype="float32"),
             trainable=True, name="thetas"
