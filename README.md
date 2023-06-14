@@ -11,3 +11,9 @@ We conducted a comprehensive investigation into the application of quantum reinf
 Our findings indicate that, for models with fewer than four layers, the classical model demonstrates compatibility with the quantum model. However, as the number of layers increases, the quantum model outperforms the classical one. Remarkably, the quantum model exhibited the best performance during both training and testing stages.
 
 Overall, our study highlights the advantages of employing quantum reinforcement learning for the Cart Pole environment, showcasing the superiority of certain quantum models over classical counterparts.
+
+
+## Files
+
+- [Final Report](report.pdf)
+- [Presentation (Portuguese)](presentation_PT.pdf)
